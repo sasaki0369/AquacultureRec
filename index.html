@@ -250,14 +250,11 @@ input.carried{
     <div class="card">
       <h2>📋 管理表 <span class="badge">測定記録</span></h2>
 
-      <label>日付</label>
-      <input type="date" id="kDate">
-
-      <label>時間帯</label>
       <div class="grid2">
-        <button type="button" class="btn btn-outline btn-block" id="kPeriodAM" data-period="AM">午前 (AM)</button>
-        <button type="button" class="btn btn-outline btn-block" id="kPeriodPM" data-period="PM">午後 (PM)</button>
+        <div><label>登録日</label><input type="date" id="kDate"></div>
+        <div><label>登録時間</label><input type="time" id="kTime"></div>
       </div>
+      <div class="hint" id="kPeriodInfo"></div>
 
       <label>担当者</label>
       <input type="text" id="kStaff" list="staffList" placeholder="例：下高原、西城">
@@ -423,6 +420,16 @@ input.carried{
     </div>
 
     <div class="card">
+      <div class="section-title">📥 CSVエクスポート（データ分析用・全期間）</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="btn btn-outline btn-sm" id="exportKanriCsvBtn">管理表CSV</button>
+        <button type="button" class="btn btn-outline btn-sm" id="exportTaichoCsvBtn">体長・体重CSV</button>
+        <button type="button" class="btn btn-outline btn-sm" id="exportShiftCsvBtn">シフト表CSV</button>
+      </div>
+      <div class="hint">現在選択中の月に関わらず、保存されている全期間のデータをCSV（UTF-8/Excel対応）として書き出します。</div>
+    </div>
+
+    <div class="card">
       <div class="section-title">管理表（測定値の平均・最小〜最大）</div>
       <div id="summaryKanriStats" class="statgrid"><div class="empty">データがありません</div></div>
       <div class="divider"></div>
@@ -529,10 +536,24 @@ function todayStr(){
   const d = new Date();
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 }
+function nowTimeStr(){
+  const d = new Date();
+  return pad(d.getHours())+':'+pad(d.getMinutes());
+}
 function pad(n){ return String(n).padStart(2,'0'); }
 function monthStr(){
   const d = new Date();
   return d.getFullYear()+'-'+pad(d.getMonth()+1);
+}
+/* 登録時間(HH:MM)から午前/午後を自動判定する（12時台以降はPM） */
+function periodFromTime(t){
+  if(!t) return 'AM';
+  const h = parseInt(String(t).split(':')[0], 10);
+  return (isNaN(h) || h < 12) ? 'AM' : 'PM';
+}
+/* 時間の記録が無い古いデータ（インポート分など）を編集する際の代表時刻 */
+function defaultTimeForPeriod(period){
+  return period === 'PM' ? '14:00' : '08:00';
 }
 function monthOf(dateStr){ return dateStr ? dateStr.slice(0,7) : ''; }
 function monthLabel(mk){
@@ -905,15 +926,16 @@ const KANRI_NUMERIC_FIELD_IDS = {gaiki:'kGaiki',shitsuon:'kShitsuon',kyuji:'kKyu
 
 function initKanriTab(){
   $('kDate').value = todayStr();
+  $('kTime').value = nowTimeStr();
   kCurrentMonth = monthOf($('kDate').value);
   kPhotoManager = createPhotoManager('k');
   kClarityPhotoManager = createPhotoManager('kClarity', updateKClarityPreview);
 
-  $('kPeriodAM').addEventListener('click', ()=>setKPeriod('AM'));
-  $('kPeriodPM').addEventListener('click', ()=>setKPeriod('PM'));
-  setKPeriod('AM');
+  updateKPeriodDisplay();
 
   $('kDate').addEventListener('change', onKDateChange);
+  $('kTime').addEventListener('change', onKTimeChange);
+  $('kTime').addEventListener('input', onKTimeChange);
   $('kResetBtn').addEventListener('click', resetKanriForm);
   $('kSaveBtn').addEventListener('click', saveKanri);
   bindSteppers();
@@ -940,13 +962,19 @@ function onKDateChange(){
     loadKanriFormFromExisting();
   }
 }
-function setKPeriod(p){
-  kSelectedPeriod = p;
-  $('kPeriodAM').classList.toggle('btn-primary', p==='AM');
-  $('kPeriodAM').classList.toggle('btn-outline', p!=='AM');
-  $('kPeriodPM').classList.toggle('btn-primary', p==='PM');
-  $('kPeriodPM').classList.toggle('btn-outline', p!=='PM');
-  loadKanriFormFromExisting();
+/* 登録時間の入力欄から午前/午後を自動判定して表示バッジを更新する（ボタン選択は廃止） */
+function updateKPeriodDisplay(){
+  kSelectedPeriod = periodFromTime($('kTime').value);
+  const label = kSelectedPeriod === 'AM' ? '午前 (AM)' : '午後 (PM)';
+  const infoEl = $('kPeriodInfo');
+  if(infoEl) infoEl.textContent = `⏱ 時間帯判定: ${label}`;
+}
+function onKTimeChange(){
+  const before = kSelectedPeriod;
+  updateKPeriodDisplay();
+  if(kSelectedPeriod !== before){
+    loadKanriFormFromExisting();
+  }
 }
 function kanriKeyOf(date, period){ return `${date}_${period}`; }
 
@@ -1001,12 +1029,14 @@ async function updateKClarityPreview(){
   infoEl.textContent = `透明度目安: ${fmtNum(avg,1)} ${cmp} ※写真から算出した相対的な目安値です`;
 }
 function loadKanriFormFromExisting(){
+  updateKPeriodDisplay();
   const date = $('kDate').value;
   const key = kanriKeyOf(date, kSelectedPeriod);
   const rec = kanriMonthData[key];
   const fieldIds = KANRI_NUMERIC_FIELD_IDS;
   Object.values(fieldIds).forEach(id=> $(id).classList.remove('carried'));
   if(rec){
+    if(rec.time) $('kTime').value = rec.time;
     $('kStaff').value = rec.staff || '';
     Object.keys(fieldIds).forEach(k=>{ $(fieldIds[k]).value = rec[k]!==undefined ? rec[k] : ''; });
     $('kMemo').value = rec.memo || '';
@@ -1039,6 +1069,8 @@ async function saveKanri(){
   if(!db){ toast('Firebase未設定のため保存できません'); return; }
   const date = $('kDate').value;
   if(!date){ toast('日付を入力してください'); return; }
+  if(!$('kTime').value){ toast('登録時間を入力してください'); return; }
+  updateKPeriodDisplay();
   const btn = $('kSaveBtn');
   btn.disabled = true;
   try{
@@ -1053,7 +1085,7 @@ async function saveKanri(){
     const mk = monthOf(date);
     const key = kanriKeyOf(date, kSelectedPeriod);
     const rec = {
-      date, period: kSelectedPeriod,
+      date, period: kSelectedPeriod, time: $('kTime').value.trim(),
       staff: $('kStaff').value.trim(),
       gaiki: $('kGaiki').value.trim(),
       shitsuon: $('kShitsuon').value.trim(),
@@ -1111,7 +1143,7 @@ function renderKanriList(){
     }
     return `<div class="list-item" data-key="${key}">
       <button class="del" data-del="${key}" title="削除">🗑</button>
-      <div class="top"><span class="date">${fmtDate(r.date)}</span><span class="period ${r.period}">${r.period}</span>${photoBadge}${clarityBadge}</div>
+      <div class="top"><span class="date">${fmtDate(r.date)}</span><span class="period ${r.period}">${r.period}${r.time? ' '+escapeHtml(r.time):''}</span>${photoBadge}${clarityBadge}</div>
       <div class="meta">${escapeHtml(r.staff||'担当者未記入')}${parts.length? ' ／ '+parts.join('　') : ''}${r.memo? '<br>💬 '+escapeHtml(r.memo):''}</div>
     </div>`;
   }).join('');
@@ -1120,7 +1152,8 @@ function renderKanriList(){
       if(e.target.dataset.del) return;
       const r = kanriMonthData[el.dataset.key];
       $('kDate').value = r.date;
-      setKPeriod(r.period);
+      $('kTime').value = r.time || defaultTimeForPeriod(r.period);
+      loadKanriFormFromExisting();
       window.scrollTo({top:0,behavior:'smooth'});
     });
   });
@@ -1429,6 +1462,115 @@ function initSummaryTab(){
   $('summaryMonth').value = monthStr();
   $('summaryMonth').addEventListener('change', attachSummaryListeners);
   attachSummaryListeners();
+  $('exportKanriCsvBtn').addEventListener('click', exportKanriCsv);
+  $('exportTaichoCsvBtn').addEventListener('click', exportTaichoCsv);
+  $('exportShiftCsvBtn').addEventListener('click', exportShiftCsv);
+}
+
+/* ---------- CSVエクスポート（データ分析用・全期間） ---------- */
+function csvField(v){
+  const s = (v===null||v===undefined) ? '' : String(v);
+  return /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+/* CSV用の数値フォーマット：値が無い場合は fmtNum の "-" ではなく空欄にする（表計算での誤集計を防ぐため） */
+function csvNum(n, digits){
+  if(n===null||n===undefined||isNaN(n)) return '';
+  return fmtNum(n, digits);
+}
+function downloadCsv(filename, rows){
+  const BOM = '﻿'; // Excelで日本語文字化けを防ぐ
+  const content = BOM + rows.map(row=> row.map(csvField).join(',')).join('\r\n');
+  const blob = new Blob([content], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 2000);
+}
+async function withExportButton(btnId, fn){
+  if(!db){ toast('Firebase未設定のためエクスポートできません'); return; }
+  const btn = $(btnId);
+  const orig = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '出力中…'; }
+  try{
+    await fn();
+    toast('CSVを出力しました');
+  } catch(err){
+    console.error('CSV export error', err);
+    toast('CSV出力に失敗しました');
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = orig; }
+  }
+}
+async function exportKanriCsv(){
+  await withExportButton('exportKanriCsvBtn', async ()=>{
+    const snap = await db.ref(`${ROOT}/kanri`).once('value');
+    const all = snap.val() || {};
+    const numericFields = KANRI_FIELDS.filter(f=>f.key!=='clarity');
+    const header = ['日付','時間帯','登録時間','担当者',
+      ...numericFields.map(f=> f.unit ? `${f.label}(${f.unit})` : f.label),
+      '透明度目安','メモ','現地写真枚数','透明度用写真枚数'];
+    const rows = [header];
+    Object.keys(all).sort().forEach(mk=>{
+      const monthData = all[mk] || {};
+      Object.keys(monthData).sort().forEach(key=>{
+        const r = monthData[key] || {};
+        rows.push([
+          r.date||'', r.period||'', r.time||'', r.staff||'',
+          ...numericFields.map(f=> r[f.key]!==undefined ? r[f.key] : ''),
+          r.clarity||'',
+          r.memo||'',
+          (r.photoIds||[]).length,
+          (r.clarityPhotoIds||[]).length
+        ]);
+      });
+    });
+    downloadCsv(`管理表_全期間_${todayStr()}.csv`, rows);
+  });
+}
+async function exportTaichoCsv(){
+  await withExportButton('exportTaichoCsvBtn', async ()=>{
+    const snap = await db.ref(`${ROOT}/taicho`).once('value');
+    const all = snap.val() || {};
+    const header = ['測定日','No.','体長(cm)','体重(g)','個体備考','体長平均(cm)','体重平均(g)','尾数','全体メモ','写真枚数'];
+    const rows = [header];
+    Object.keys(all).sort().forEach(mk=>{
+      const monthData = all[mk] || {};
+      Object.keys(monthData).sort().forEach(date=>{
+        const r = monthData[date] || {};
+        const a = taichoAvgOf(r);
+        const photoCount = (r.photoIds||[]).length;
+        const items = r.items || [];
+        if(items.length===0){
+          rows.push([date, '', '', '', '', csvNum(a.avgLen,1), csvNum(a.avgWeight,1), a.count, r.note||'', photoCount]);
+        } else {
+          items.forEach(it=>{
+            rows.push([date, (it&&it.no)||'', (it&&it.taicho)||'', (it&&it.taiju)||'', (it&&it.memo)||'',
+              csvNum(a.avgLen,1), csvNum(a.avgWeight,1), a.count, r.note||'', photoCount]);
+          });
+        }
+      });
+    });
+    downloadCsv(`体長体重_全期間_${todayStr()}.csv`, rows);
+  });
+}
+async function exportShiftCsv(){
+  await withExportButton('exportShiftCsvBtn', async ()=>{
+    const snap = await db.ref(`${ROOT}/shift`).once('value');
+    const all = snap.val() || {};
+    const header = ['日付','曜日','午前予定者','午後予定者','備考'];
+    const rows = [header];
+    Object.keys(all).sort().forEach(mk=>{
+      const monthData = all[mk] || {};
+      Object.keys(monthData).sort().forEach(date=>{
+        const r = monthData[date] || {};
+        rows.push([date, weekdayOf(date), r.am||'', r.pm||'', r.note||'']);
+      });
+    });
+    downloadCsv(`シフト表_全期間_${todayStr()}.csv`, rows);
+  });
 }
 function attachSummaryListeners(){
   const mk = $('summaryMonth').value || monthStr();
