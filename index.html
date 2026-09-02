@@ -186,6 +186,34 @@ nav.tabbar button.active{color:var(--teal);}
 .staffchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
 .staffchips span{background:var(--teal-light);color:var(--teal);font-size:11px;padding:3px 9px;border-radius:12px;}
 
+.quickchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.quickchips button{
+  background:var(--teal-light);color:var(--teal);font-size:12px;font-weight:700;
+  padding:5px 11px;border-radius:14px;border:none;font-family:inherit;
+}
+.quickchips button:active{opacity:0.7;}
+.staffchips.pick span{cursor:pointer;}
+.staffchips.pick span:active{opacity:0.7;}
+
+.stepgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:2px;}
+.stepfield label{display:block;font-size:11.5px;color:var(--sub);margin-bottom:3px;}
+.stepper{display:flex;align-items:stretch;gap:0;}
+.stepper .stepbtn{
+  flex:0 0 32px;width:32px;background:var(--teal-light);color:var(--teal);
+  border:none;font-size:17px;font-weight:800;font-family:inherit;line-height:1;
+}
+.stepper .stepbtn:first-child{border-radius:9px 0 0 9px;}
+.stepper .stepbtn:last-child{border-radius:0 9px 9px 0;}
+.stepper .stepbtn:active{opacity:0.65;}
+.stepper input{
+  flex:1;min-width:0;text-align:center;border-radius:0;
+  border-left:none;border-right:none;
+}
+input.carried{
+  color:#93a0a8;font-style:italic;border-style:dashed;background:#fafcfc;
+}
+.carriedhint{font-size:11px;color:#93a0a8;margin:2px 0 8px;}
+
 .toast{
   position:fixed;left:50%;bottom:92px;transform:translateX(-50%);
   background:rgba(20,30,35,0.92);color:#fff;padding:9px 18px;border-radius:22px;
@@ -233,29 +261,60 @@ nav.tabbar button.active{color:var(--teal);}
 
       <label>担当者</label>
       <input type="text" id="kStaff" list="staffList" placeholder="例：下高原、西城">
+      <div class="staffchips pick" id="kStaffChips"></div>
 
-      <div class="grid3">
-        <div><label>外気温(℃)</label><input type="text" inputmode="decimal" id="kGaiki"></div>
-        <div><label>室内温(℃)</label><input type="text" inputmode="decimal" id="kShitsuon"></div>
-        <div><label>給餌量(g)</label><input type="text" id="kKyuji"></div>
+      <div class="carriedhint">薄字の項目は前回の値を仮表示しています。変更がなければそのまま保存できます。</div>
+      <div class="stepgrid" id="kStepGrid">
+        <div class="stepfield"><label>外気温(℃)</label>
+          <div class="stepper"><button type="button" class="stepbtn" data-target="kGaiki" data-step="-0.5">－</button><input type="text" inputmode="decimal" id="kGaiki"><button type="button" class="stepbtn" data-target="kGaiki" data-step="0.5">＋</button></div>
+        </div>
+        <div class="stepfield"><label>室内温(℃)</label>
+          <div class="stepper"><button type="button" class="stepbtn" data-target="kShitsuon" data-step="-0.5">－</button><input type="text" inputmode="decimal" id="kShitsuon"><button type="button" class="stepbtn" data-target="kShitsuon" data-step="0.5">＋</button></div>
+        </div>
+        <div class="stepfield"><label>水温(℃)</label>
+          <div class="stepper"><button type="button" class="stepbtn" data-target="kSuion" data-step="-0.1">－</button><input type="text" inputmode="decimal" id="kSuion"><button type="button" class="stepbtn" data-target="kSuion" data-step="0.1">＋</button></div>
+        </div>
+        <div class="stepfield"><label>pH</label>
+          <div class="stepper"><button type="button" class="stepbtn" data-target="kPh" data-step="-0.1">－</button><input type="text" inputmode="decimal" id="kPh"><button type="button" class="stepbtn" data-target="kPh" data-step="0.1">＋</button></div>
+        </div>
+        <div class="stepfield"><label>DO水槽内(mg/L)</label>
+          <div class="stepper"><button type="button" class="stepbtn" data-target="kDoTank" data-step="-0.1">－</button><input type="text" inputmode="decimal" id="kDoTank"><button type="button" class="stepbtn" data-target="kDoTank" data-step="0.1">＋</button></div>
+        </div>
+        <div class="stepfield"><label>DO濾過槽内(mg/L)</label>
+          <div class="stepper"><button type="button" class="stepbtn" data-target="kDoFilter" data-step="-0.1">－</button><input type="text" inputmode="decimal" id="kDoFilter"><button type="button" class="stepbtn" data-target="kDoFilter" data-step="0.1">＋</button></div>
+        </div>
+        <div class="stepfield"><label>塩分濃度(ppm)</label>
+          <div class="stepper"><button type="button" class="stepbtn" data-target="kEnsho" data-step="-1">－</button><input type="text" inputmode="decimal" id="kEnsho"><button type="button" class="stepbtn" data-target="kEnsho" data-step="1">＋</button></div>
+        </div>
+        <div class="stepfield"><label>アンモニア(ppm)</label>
+          <div class="stepper"><button type="button" class="stepbtn" data-target="kAmmonia" data-step="-0.05">－</button><input type="text" inputmode="decimal" id="kAmmonia"><button type="button" class="stepbtn" data-target="kAmmonia" data-step="0.05">＋</button></div>
+        </div>
+        <div class="stepfield"><label>亜硝酸NO2(ppm)</label>
+          <div class="stepper"><button type="button" class="stepbtn" data-target="kNo2" data-step="-0.05">－</button><input type="text" inputmode="decimal" id="kNo2"><button type="button" class="stepbtn" data-target="kNo2" data-step="0.05">＋</button></div>
+        </div>
+        <div class="stepfield"><label>オゾン(ppm)</label>
+          <div class="stepper"><button type="button" class="stepbtn" data-target="kOzone" data-step="-0.05">－</button><input type="text" inputmode="decimal" id="kOzone"><button type="button" class="stepbtn" data-target="kOzone" data-step="0.05">＋</button></div>
+        </div>
+        <div class="stepfield"><label>水深(cm)</label>
+          <div class="stepper"><button type="button" class="stepbtn" data-target="kSuishin" data-step="-1">－</button><input type="text" inputmode="decimal" id="kSuishin"><button type="button" class="stepbtn" data-target="kSuishin" data-step="1">＋</button></div>
+        </div>
       </div>
-      <div class="grid3">
-        <div><label>水温(℃)</label><input type="text" inputmode="decimal" id="kSuion"></div>
-        <div><label>pH</label><input type="text" inputmode="decimal" id="kPh"></div>
-        <div><label>DO水槽内(mg/L)</label><input type="text" inputmode="decimal" id="kDoTank"></div>
+
+      <label>給餌量(g)</label>
+      <input type="text" id="kKyuji">
+      <div class="quickchips" id="kKyujiChips">
+        <button type="button" data-target="kKyuji" data-value="餌止め">餌止め</button>
+        <button type="button" data-target="kKyuji" data-value="ー">ー</button>
+        <button type="button" data-target="kKyuji" data-value="未">未</button>
       </div>
-      <div class="grid3">
-        <div><label>DO濾過槽内(mg/L)</label><input type="text" inputmode="decimal" id="kDoFilter"></div>
-        <div><label>塩分濃度(ppm)</label><input type="text" inputmode="decimal" id="kEnsho"></div>
-        <div><label>アンモニア(ppm)</label><input type="text" inputmode="decimal" id="kAmmonia"></div>
-      </div>
-      <div class="grid3">
-        <div><label>亜硝酸NO2(ppm)</label><input type="text" inputmode="decimal" id="kNo2"></div>
-        <div><label>オゾン(ppm)</label><input type="text" inputmode="decimal" id="kOzone"></div>
-        <div><label>水深(cm)</label><input type="text" inputmode="decimal" id="kSuishin"></div>
-      </div>
+
       <label>灯油残量</label>
       <input type="text" id="kToyu" placeholder="満タン／未／0.6 など">
+      <div class="quickchips" id="kToyuChips">
+        <button type="button" data-target="kToyu" data-value="満タン">満タン</button>
+        <button type="button" data-target="kToyu" data-value="未">未</button>
+        <button type="button" data-target="kToyu" data-value="ー">ー</button>
+      </div>
 
       <label>メモ（水槽内の魚の状況や機器の気になる点など）</label>
       <textarea id="kMemo"></textarea>
@@ -264,6 +323,11 @@ nav.tabbar button.active{color:var(--teal);}
       <input type="file" id="kPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
       <div class="photogrid" id="kPhotoGrid"></div>
       <button type="button" class="btn btn-outline btn-sm" id="kPhotoAddBtn">＋ 写真を追加</button>
+
+      <label>💧 透明度判定用の写真（毎回同じ場所・角度で撮影すると精度が上がります）</label>
+      <input type="file" id="kClarityPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
+      <div class="photogrid" id="kClarityPhotoGrid"></div>
+      <button type="button" class="btn btn-outline btn-sm" id="kClarityPhotoAddBtn">＋ 透明度用の写真を追加</button>
       <div id="kClarityInfo" class="hint"></div>
 
       <div class="row-actions">
@@ -328,9 +392,11 @@ nav.tabbar button.active{color:var(--teal);}
 
       <label>午前予定者</label>
       <input type="text" id="sAm" list="staffList" placeholder="例：下高原、西城">
+      <div class="staffchips pick" id="sAmChips"></div>
 
       <label>午後予定者</label>
       <input type="text" id="sPm" list="staffList" placeholder="例：下高原、西城">
+      <div class="staffchips pick" id="sPmChips"></div>
 
       <label>備考</label>
       <textarea id="sNote" placeholder="稚魚到着、餌止め、来店対応 など"></textarea>
@@ -719,6 +785,67 @@ function createPhotoManager(prefix, onChange){
   };
 }
 
+/* ---------- 4.6 入力を楽にするための共通UI部品（数値ステッパー／クイックチップ／担当者チップ） ---------- */
+function bindSteppers(){
+  document.querySelectorAll('.stepbtn[data-target]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const el = $(btn.dataset.target);
+      if(!el) return;
+      const stepStr = btn.dataset.step;
+      const step = parseFloat(stepStr);
+      const cur = parseNum(el.value);
+      let next = (isNaN(cur) ? 0 : cur) + step;
+      const dot = stepStr.indexOf('.');
+      const decimals = dot === -1 ? 0 : (stepStr.length - dot - 1);
+      next = parseFloat(next.toFixed(decimals));
+      el.value = String(next);
+      el.classList.remove('carried');
+      el.dispatchEvent(new Event('input', {bubbles:true}));
+    });
+  });
+}
+function bindQuickChips(containerId){
+  const el = $(containerId);
+  if(!el) return;
+  el.querySelectorAll('button[data-target]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const target = $(btn.dataset.target);
+      if(!target) return;
+      target.value = btn.dataset.value;
+      target.classList.remove('carried');
+      target.dispatchEvent(new Event('input', {bubbles:true}));
+    });
+  });
+}
+function splitNames(str){
+  return (str||'').split(/[、,＆\/\n]/).map(s=>s.trim()).filter(Boolean);
+}
+function computeNameFrequency(records, fields){
+  const freq = {};
+  Object.values(records||{}).forEach(rec=>{
+    fields.forEach(f=>{
+      splitNames(rec && rec[f]).forEach(n=>{ freq[n] = (freq[n]||0)+1; });
+    });
+  });
+  return Object.entries(freq).sort((a,b)=> b[1]-a[1]).map(e=>e[0]);
+}
+function renderNameChips(containerId, inputId, names, limit){
+  const el = $(containerId);
+  if(!el) return;
+  const top = names.slice(0, limit===undefined?6:limit);
+  el.innerHTML = top.map(n=>`<span data-name="${escapeHtml(n)}">${escapeHtml(n)}</span>`).join('');
+  el.querySelectorAll('[data-name]').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      const input = $(inputId);
+      const existing = splitNames(input.value);
+      const name = chip.dataset.name;
+      if(!existing.includes(name)) existing.push(name);
+      input.value = existing.join('、');
+      input.dispatchEvent(new Event('input', {bubbles:true}));
+    });
+  });
+}
+
 /* ---------- 5. スタッフ名（担当者・シフト予定者）の候補リスト ---------- */
 let staffNames = new Set();
 function initStaffListener(){
@@ -730,6 +857,9 @@ function initStaffListener(){
     });
     const dl = $('staffList');
     dl.innerHTML = [...staffNames].sort().map(n=>`<option value="${escapeHtml(n)}">`).join('');
+    renderKStaffChips();
+    renderSAmChips();
+    renderSPmChips();
   });
 }
 function rememberStaffNames(str){
@@ -767,12 +897,17 @@ let kanriMonthRef = null;
 let kanriMonthData = {};
 let kSelectedPeriod = 'AM';
 let kPhotoManager = null;
+let kClarityPhotoManager = null;
 let kCurrentMonth = null;
+const KANRI_NUMERIC_FIELD_IDS = {gaiki:'kGaiki',shitsuon:'kShitsuon',kyuji:'kKyuji',suion:'kSuion',ph:'kPh',
+  doTank:'kDoTank',doFilter:'kDoFilter',ensho:'kEnsho',ammonia:'kAmmonia',no2:'kNo2',
+  ozone:'kOzone',suishin:'kSuishin',toyu:'kToyu'};
 
 function initKanriTab(){
   $('kDate').value = todayStr();
   kCurrentMonth = monthOf($('kDate').value);
-  kPhotoManager = createPhotoManager('k', updateKClarityPreview);
+  kPhotoManager = createPhotoManager('k');
+  kClarityPhotoManager = createPhotoManager('kClarity', updateKClarityPreview);
 
   $('kPeriodAM').addEventListener('click', ()=>setKPeriod('AM'));
   $('kPeriodPM').addEventListener('click', ()=>setKPeriod('PM'));
@@ -781,8 +916,20 @@ function initKanriTab(){
   $('kDate').addEventListener('change', onKDateChange);
   $('kResetBtn').addEventListener('click', resetKanriForm);
   $('kSaveBtn').addEventListener('click', saveKanri);
+  bindSteppers();
+  bindQuickChips('kKyujiChips');
+  bindQuickChips('kToyuChips');
+  Object.values(KANRI_NUMERIC_FIELD_IDS).forEach(id=>{
+    $(id).addEventListener('input', ()=> $(id).classList.remove('carried'));
+  });
 
   attachKanriListener();
+}
+function renderKStaffChips(){
+  if(!$('kStaffChips')) return;
+  const freq = computeNameFrequency(kanriMonthData, ['staff']);
+  const rest = [...staffNames].filter(n=>!freq.includes(n)).sort();
+  renderNameChips('kStaffChips', 'kStaff', freq.concat(rest), 6);
 }
 function onKDateChange(){
   const mk = monthOf($('kDate').value);
@@ -812,6 +959,7 @@ function attachKanriListener(){
     kanriMonthData = snap.val() || {};
     renderKanriList();
     loadKanriFormFromExisting();
+    renderKStaffChips();
   });
 }
 /* 今月内で、指定の日付・時間帯より前の記録から、直近の透明度目安を探す（月をまたぐ比較は行わない） */
@@ -826,9 +974,16 @@ function findPreviousClarity(beforeDate, beforePeriod){
   }
   return null;
 }
+/* 今月内で、指定の日付・時間帯より前の直近の記録（入力を楽にするための値の引き継ぎ用） */
+function findPreviousKanriRecord(beforeDate, beforePeriod){
+  const targetKey = kanriKeyOf(beforeDate, beforePeriod);
+  const keys = Object.keys(kanriMonthData).sort().filter(k=> k < targetKey);
+  if(keys.length === 0) return null;
+  return kanriMonthData[keys[keys.length-1]];
+}
 async function updateKClarityPreview(){
   const infoEl = $('kClarityInfo');
-  const urls = kPhotoManager.getDataUrls();
+  const urls = kClarityPhotoManager.getDataUrls();
   if(urls.length === 0){ infoEl.textContent = ''; return; }
   infoEl.textContent = '透明度目安を計算中…';
   const scores = (await Promise.all(urls.map(computeClarityScore))).filter(s=>s!==null);
@@ -849,26 +1004,36 @@ function loadKanriFormFromExisting(){
   const date = $('kDate').value;
   const key = kanriKeyOf(date, kSelectedPeriod);
   const rec = kanriMonthData[key];
-  const fieldIds = {gaiki:'kGaiki',shitsuon:'kShitsuon',kyuji:'kKyuji',suion:'kSuion',ph:'kPh',
-    doTank:'kDoTank',doFilter:'kDoFilter',ensho:'kEnsho',ammonia:'kAmmonia',no2:'kNo2',
-    ozone:'kOzone',suishin:'kSuishin',toyu:'kToyu'};
+  const fieldIds = KANRI_NUMERIC_FIELD_IDS;
+  Object.values(fieldIds).forEach(id=> $(id).classList.remove('carried'));
   if(rec){
     $('kStaff').value = rec.staff || '';
     Object.keys(fieldIds).forEach(k=>{ $(fieldIds[k]).value = rec[k]!==undefined ? rec[k] : ''; });
     $('kMemo').value = rec.memo || '';
     kPhotoManager.setFromIds(rec.photoIds);
+    kClarityPhotoManager.setFromIds(rec.clarityPhotoIds);
   } else {
     $('kStaff').value = '';
-    Object.keys(fieldIds).forEach(k=>{ $(fieldIds[k]).value = ''; });
     $('kMemo').value = '';
+    const prev = findPreviousKanriRecord(date, kSelectedPeriod);
+    Object.keys(fieldIds).forEach(k=>{
+      const el = $(fieldIds[k]);
+      if(prev && prev[k]){
+        el.value = prev[k];
+        el.classList.add('carried');
+      } else {
+        el.value = '';
+      }
+    });
     kPhotoManager.reset();
+    kClarityPhotoManager.reset();
   }
 }
 function resetKanriForm(){
   $('kStaff').value=''; $('kMemo').value='';
-  ['kGaiki','kShitsuon','kKyuji','kSuion','kPh','kDoTank','kDoFilter','kEnsho','kAmmonia','kNo2','kOzone','kSuishin','kToyu']
-    .forEach(id=>$(id).value='');
+  Object.values(KANRI_NUMERIC_FIELD_IDS).forEach(id=>{ $(id).value=''; $(id).classList.remove('carried'); });
   kPhotoManager.reset();
+  kClarityPhotoManager.reset();
 }
 async function saveKanri(){
   if(!db){ toast('Firebase未設定のため保存できません'); return; }
@@ -878,10 +1043,11 @@ async function saveKanri(){
   btn.disabled = true;
   try{
     const photoIds = await kPhotoManager.saveAndGetIds();
-    const urls = kPhotoManager.getDataUrls();
+    const clarityPhotoIds = await kClarityPhotoManager.saveAndGetIds();
+    const clarityUrls = kClarityPhotoManager.getDataUrls();
     let clarity = '';
-    if(urls.length){
-      const scores = (await Promise.all(urls.map(computeClarityScore))).filter(s=>s!==null);
+    if(clarityUrls.length){
+      const scores = (await Promise.all(clarityUrls.map(computeClarityScore))).filter(s=>s!==null);
       if(scores.length) clarity = (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1);
     }
     const mk = monthOf(date);
@@ -905,6 +1071,7 @@ async function saveKanri(){
       memo: $('kMemo').value.trim(),
       clarity,
       photoIds: photoIds.length ? photoIds : null,
+      clarityPhotoIds: clarityPhotoIds.length ? clarityPhotoIds : null,
       updatedAt: firebase.database.ServerValue.TIMESTAMP
     };
     await db.ref(`${ROOT}/kanri/${mk}/${key}`).set(rec);
@@ -966,6 +1133,7 @@ function renderKanriList(){
       db.ref(`${ROOT}/kanri/${mk2}/${el.dataset.del}`).remove().then(()=>{
         toast('削除しました');
         if(rec && rec.photoIds) rec.photoIds.forEach(id=> db.ref(`${ROOT}/photos/${id}`).remove());
+        if(rec && rec.clarityPhotoIds) rec.clarityPhotoIds.forEach(id=> db.ref(`${ROOT}/photos/${id}`).remove());
       });
     });
   });
@@ -1181,7 +1349,21 @@ function attachShiftListener(){
     shiftMonthData = snap.val() || {};
     renderShiftList();
     loadShiftFormFromExisting();
+    renderSAmChips();
+    renderSPmChips();
   });
+}
+function renderSAmChips(){
+  if(!$('sAmChips')) return;
+  const freq = computeNameFrequency(shiftMonthData, ['am','pm']);
+  const rest = [...staffNames].filter(n=>!freq.includes(n)).sort();
+  renderNameChips('sAmChips', 'sAm', freq.concat(rest), 6);
+}
+function renderSPmChips(){
+  if(!$('sPmChips')) return;
+  const freq = computeNameFrequency(shiftMonthData, ['am','pm']);
+  const rest = [...staffNames].filter(n=>!freq.includes(n)).sort();
+  renderNameChips('sPmChips', 'sPm', freq.concat(rest), 6);
 }
 function loadShiftFormFromExisting(){
   const date = $('sDate').value;
