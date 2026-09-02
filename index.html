@@ -106,21 +106,23 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--teal);outline-of
 .monthbar .btn{flex:none;}
 
 .list-item{
-  border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;
+  border:1px solid var(--line);border-radius:12px;padding:10px 34px 10px 12px;margin-bottom:8px;
   cursor:pointer;position:relative;background:#fff;
 }
 .list-item:active{background:#f4fbfb;}
-.list-item .top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.list-item .top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;}
 .list-item .date{font-weight:700;font-size:13px;}
+.list-item .top .date{margin-right:auto;}
 .list-item .period{
   font-size:11px;font-weight:700;color:#fff;padding:2px 8px;border-radius:10px;
+  white-space:nowrap;
 }
 .period.AM{background:var(--am);}
 .period.PM{background:var(--pm);}
 .list-item .meta{font-size:12px;color:var(--sub);margin-top:4px;line-height:1.5;}
 .list-item .del{
   position:absolute;top:8px;right:8px;background:none;border:none;color:var(--sub);
-  font-size:16px;padding:4px 6px;line-height:1;
+  font-size:16px;padding:4px 6px;line-height:1;z-index:1;
 }
 .empty{color:var(--sub);font-size:13px;text-align:center;padding:18px 0;}
 
