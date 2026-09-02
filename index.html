@@ -129,6 +129,19 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--teal);outline-of
 .itemrow .rm{background:none;border:none;color:var(--danger);font-size:18px;}
 .itemhead{display:grid;grid-template-columns:44px 1fr 1fr 1.2fr 30px;gap:6px;font-size:11px;color:var(--sub);font-weight:700;margin-bottom:4px;}
 
+.photogrid{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0;}
+.photothumb{position:relative;width:76px;height:76px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#f2f6f7;}
+.photothumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.photothumb .rm{
+  position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;
+  background:rgba(20,30,35,0.65);color:#fff;border:none;font-size:13px;line-height:1;
+  display:flex;align-items:center;justify-content:center;padding:0;
+}
+.photothumb .up{position:absolute;bottom:2px;left:2px;right:2px;background:rgba(20,30,35,0.55);color:#fff;font-size:9px;text-align:center;border-radius:4px;padding:1px 0;}
+.photocount{
+  display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--teal);
+  background:var(--teal-light);padding:2px 8px;border-radius:12px;font-weight:700;
+}
 .avgbox{display:flex;gap:10px;margin-top:10px;}
 .avgbox .pill{
   flex:1;background:var(--teal-light);border-radius:12px;padding:10px;text-align:center;
@@ -249,6 +262,11 @@ nav.tabbar button.active{color:var(--teal);}
       <label>メモ（水槽内の魚の状況や機器の気になる点など）</label>
       <textarea id="kMemo"></textarea>
 
+      <label>📷 現地写真（複数可）</label>
+      <input type="file" id="kPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
+      <div class="photogrid" id="kPhotoGrid"></div>
+      <button type="button" class="btn btn-outline btn-sm" id="kPhotoAddBtn">＋ 写真を追加</button>
+
       <div class="row-actions">
         <button class="btn btn-outline" id="kResetBtn">クリア</button>
         <button class="btn btn-primary" id="kSaveBtn">保存する</button>
@@ -286,6 +304,11 @@ nav.tabbar button.active{color:var(--teal);}
 
       <label>平均値・全体メモ</label>
       <textarea id="tNote" placeholder="この測定日全体についてのメモ"></textarea>
+
+      <label>📷 現地写真（複数可）</label>
+      <input type="file" id="tPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
+      <div class="photogrid" id="tPhotoGrid"></div>
+      <button type="button" class="btn btn-outline btn-sm" id="tPhotoAddBtn">＋ 写真を追加</button>
 
       <div class="row-actions">
         <button class="btn btn-outline" id="tResetBtn">クリア</button>
@@ -406,16 +429,19 @@ nav.tabbar button.active{color:var(--teal);}
 
 /* ---------- 1. Firebase 設定（★ここをご自身のFirebaseプロジェクトの値に書き換えてください）---------- */
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCHphgSNSPjBVuztJNzUSPt8DAYq2Xae4c",
+  authDomain: "photo--memo.firebaseapp.com",
+  databaseURL: "https://photo--memo-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "photo--memo",
+  storageBucket: "photo--memo.firebasestorage.app",
+  messagingSenderId: "1010134434765",
+  appId: "1:1010134434765:web:240a21a72d6e2d330d3a84"
 };
 
 const CONFIG_IS_PLACEHOLDER = firebaseConfig.apiKey === "YOUR_API_KEY";
+
+/* このFirebaseプロジェクトは他アプリと共用のため、データはROOTキー配下にまとめて分離する */
+const ROOT = 'suisanKanri';
 
 /* ---------- 2. 管理表の項目定義 ---------- */
 const KANRI_FIELDS = [
@@ -530,10 +556,115 @@ if(CONFIG_IS_PLACEHOLDER){
   });
 }
 
+/* ---------- 4.5 現地写真：共通処理（撮影・圧縮・保存/読込） ----------
+   写真本体(Base64)は kanri/taicho の記録本体とは別の "photos" ノードに保存し、
+   記録側には photoIds（参照ID配列）だけを持たせる。
+   → 集計・グラフ画面など写真を使わない画面で月データを読み込む際に、
+     画像データまで一緒にダウンロードしてしまうのを防ぐため。 */
+function compressImage(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const MAX = 1280;
+        let w = img.width, h = img.height;
+        if(w > MAX || h > MAX){
+          if(w >= h){ h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = ()=>reject(new Error('画像の読み込みに失敗しました'));
+      img.src = e.target.result;
+    };
+    reader.onerror = ()=>reject(new Error('ファイルの読み込みに失敗しました'));
+    reader.readAsDataURL(file);
+  });
+}
+function createPhotoManager(prefix){
+  const state = { items: [], removedIds: [] }; // items: {id?, dataUrl}
+  const grid = $(prefix+'PhotoGrid');
+  const input = $(prefix+'PhotoInput');
+  const addBtn = $(prefix+'PhotoAddBtn');
+
+  function render(){
+    grid.innerHTML = state.items.map((p, idx)=>`
+      <div class="photothumb">
+        <img src="${p.dataUrl}" alt="現地写真">
+        <button type="button" class="rm" data-idx="${idx}" title="削除">×</button>
+      </div>`).join('');
+    grid.querySelectorAll('[data-idx]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const idx = parseInt(btn.dataset.idx);
+        const removed = state.items.splice(idx,1)[0];
+        if(removed && removed.id) state.removedIds.push(removed.id);
+        render();
+      });
+    });
+  }
+
+  addBtn.addEventListener('click', ()=> input.click());
+  input.addEventListener('change', async ()=>{
+    const files = Array.from(input.files || []);
+    input.value = '';
+    if(files.length===0) return;
+    addBtn.disabled = true;
+    const origLabel = addBtn.textContent;
+    addBtn.textContent = '処理中…';
+    for(const file of files){
+      try{
+        const dataUrl = await compressImage(file);
+        state.items.push({dataUrl});
+        render();
+      } catch(err){
+        console.error('photo compress error', err);
+        toast('写真の読み込みに失敗しました');
+      }
+    }
+    addBtn.disabled = false;
+    addBtn.textContent = origLabel;
+  });
+
+  return {
+    reset(){ state.items = []; state.removedIds = []; render(); },
+    setFromIds(ids){
+      state.items = [];
+      state.removedIds = [];
+      render();
+      (ids||[]).forEach(id=>{
+        db.ref(`${ROOT}/photos/${id}`).once('value').then(snap=>{
+          const v = snap.val();
+          if(v && v.dataUrl){
+            state.items.push({id, dataUrl:v.dataUrl});
+            render();
+          }
+        });
+      });
+    },
+    async saveAndGetIds(){
+      const ids = [];
+      for(const p of state.items){
+        if(p.id){ ids.push(p.id); continue; }
+        const ref = await db.ref(`${ROOT}/photos`).push({dataUrl:p.dataUrl, takenAt: firebase.database.ServerValue.TIMESTAMP});
+        ids.push(ref.key);
+      }
+      if(state.removedIds.length){
+        await Promise.all(state.removedIds.map(id=> db.ref(`${ROOT}/photos/${id}`).remove()));
+      }
+      state.removedIds = [];
+      return ids;
+    }
+  };
+}
+
 /* ---------- 5. スタッフ名（担当者・シフト予定者）の候補リスト ---------- */
 let staffNames = new Set();
 function initStaffListener(){
-  db.ref('staffNames').on('value', (snap)=>{
+  db.ref(ROOT+'/staffNames').on('value', (snap)=>{
     staffNames = new Set();
     snap.forEach(child=>{
       const v = child.val();
@@ -547,7 +678,7 @@ function rememberStaffNames(str){
   if(!str) return;
   str.split(/[、,\/\n]/).map(s=>s.trim()).filter(Boolean).forEach(name=>{
     if(!staffNames.has(name)){
-      db.ref('staffNames').push({name});
+      db.ref(ROOT+'/staffNames').push({name});
       staffNames.add(name);
     }
   });
@@ -577,10 +708,12 @@ function initTabData(){
 let kanriMonthRef = null;
 let kanriMonthData = {};
 let kSelectedPeriod = 'AM';
+let kPhotoManager = null;
 
 function initKanriTab(){
   $('kanriMonth').value = monthStr();
   $('kDate').value = todayStr();
+  kPhotoManager = createPhotoManager('k');
 
   $('kPeriodAM').addEventListener('click', ()=>setKPeriod('AM'));
   $('kPeriodPM').addEventListener('click', ()=>setKPeriod('PM'));
@@ -606,7 +739,7 @@ function kanriKeyOf(date, period){ return `${date}_${period}`; }
 function attachKanriListener(){
   const mk = $('kanriMonth').value || monthStr();
   if(kanriMonthRef) kanriMonthRef.off();
-  kanriMonthRef = db.ref('kanri/'+mk);
+  kanriMonthRef = db.ref(ROOT+'/kanri/'+mk);
   kanriMonthRef.on('value', (snap)=>{
     kanriMonthData = snap.val() || {};
     renderKanriList();
@@ -624,47 +757,59 @@ function loadKanriFormFromExisting(){
     $('kStaff').value = rec.staff || '';
     Object.keys(fieldIds).forEach(k=>{ $(fieldIds[k]).value = rec[k]!==undefined ? rec[k] : ''; });
     $('kMemo').value = rec.memo || '';
+    kPhotoManager.setFromIds(rec.photoIds);
   } else {
     $('kStaff').value = '';
     Object.keys(fieldIds).forEach(k=>{ $(fieldIds[k]).value = ''; });
     $('kMemo').value = '';
+    kPhotoManager.reset();
   }
 }
 function resetKanriForm(){
   $('kStaff').value=''; $('kMemo').value='';
   ['kGaiki','kShitsuon','kKyuji','kSuion','kPh','kDoTank','kDoFilter','kEnsho','kAmmonia','kNo2','kOzone','kSuishin','kToyu']
     .forEach(id=>$(id).value='');
+  kPhotoManager.reset();
 }
-function saveKanri(){
+async function saveKanri(){
   if(!db){ toast('Firebase未設定のため保存できません'); return; }
   const date = $('kDate').value;
   if(!date){ toast('日付を入力してください'); return; }
-  const mk = monthOf(date);
-  const key = kanriKeyOf(date, kSelectedPeriod);
-  const rec = {
-    date, period: kSelectedPeriod,
-    staff: $('kStaff').value.trim(),
-    gaiki: $('kGaiki').value.trim(),
-    shitsuon: $('kShitsuon').value.trim(),
-    kyuji: $('kKyuji').value.trim(),
-    suion: $('kSuion').value.trim(),
-    ph: $('kPh').value.trim(),
-    doTank: $('kDoTank').value.trim(),
-    doFilter: $('kDoFilter').value.trim(),
-    ensho: $('kEnsho').value.trim(),
-    ammonia: $('kAmmonia').value.trim(),
-    no2: $('kNo2').value.trim(),
-    ozone: $('kOzone').value.trim(),
-    suishin: $('kSuishin').value.trim(),
-    toyu: $('kToyu').value.trim(),
-    memo: $('kMemo').value.trim(),
-    updatedAt: firebase.database.ServerValue.TIMESTAMP
-  };
-  db.ref(`kanri/${mk}/${key}`).set(rec).then(()=>{
+  const btn = $('kSaveBtn');
+  btn.disabled = true;
+  try{
+    const photoIds = await kPhotoManager.saveAndGetIds();
+    const mk = monthOf(date);
+    const key = kanriKeyOf(date, kSelectedPeriod);
+    const rec = {
+      date, period: kSelectedPeriod,
+      staff: $('kStaff').value.trim(),
+      gaiki: $('kGaiki').value.trim(),
+      shitsuon: $('kShitsuon').value.trim(),
+      kyuji: $('kKyuji').value.trim(),
+      suion: $('kSuion').value.trim(),
+      ph: $('kPh').value.trim(),
+      doTank: $('kDoTank').value.trim(),
+      doFilter: $('kDoFilter').value.trim(),
+      ensho: $('kEnsho').value.trim(),
+      ammonia: $('kAmmonia').value.trim(),
+      no2: $('kNo2').value.trim(),
+      ozone: $('kOzone').value.trim(),
+      suishin: $('kSuishin').value.trim(),
+      toyu: $('kToyu').value.trim(),
+      memo: $('kMemo').value.trim(),
+      photoIds: photoIds.length ? photoIds : null,
+      updatedAt: firebase.database.ServerValue.TIMESTAMP
+    };
+    await db.ref(`${ROOT}/kanri/${mk}/${key}`).set(rec);
     toast('保存しました');
     rememberStaffNames(rec.staff);
     if(mk !== $('kanriMonth').value){ $('kanriMonth').value = mk; attachKanriListener(); }
-  }).catch(err=>{ console.error(err); toast('保存に失敗しました'); });
+  } catch(err){
+    console.error(err); toast('保存に失敗しました');
+  } finally {
+    btn.disabled = false;
+  }
 }
 function renderKanriList(){
   const mk = $('kanriMonth').value || monthStr();
@@ -677,9 +822,10 @@ function renderKanriList(){
   $('kanriList').innerHTML = keys.map(key=>{
     const r = kanriMonthData[key];
     const parts = KANRI_FIELDS.filter(f=>r[f.key]).map(f=>`${f.label} ${escapeHtml(r[f.key])}${f.unit}`);
+    const photoBadge = (r.photoIds && r.photoIds.length) ? `<span class="photocount">📷 ${r.photoIds.length}</span>` : '';
     return `<div class="list-item" data-key="${key}">
       <button class="del" data-del="${key}" title="削除">🗑</button>
-      <div class="top"><span class="date">${fmtDate(r.date)}</span><span class="period ${r.period}">${r.period}</span></div>
+      <div class="top"><span class="date">${fmtDate(r.date)}</span><span class="period ${r.period}">${r.period}</span>${photoBadge}</div>
       <div class="meta">${escapeHtml(r.staff||'担当者未記入')}${parts.length? ' ／ '+parts.join('　') : ''}${r.memo? '<br>💬 '+escapeHtml(r.memo):''}</div>
     </div>`;
   }).join('');
@@ -695,9 +841,13 @@ function renderKanriList(){
   $('kanriList').querySelectorAll('[data-del]').forEach(el=>{
     el.addEventListener('click', (e)=>{
       e.stopPropagation();
-      if(!confirm('この記録を削除しますか？')) return;
+      if(!confirm('この記録を削除しますか？（添付写真も削除されます）')) return;
       const mk2 = $('kanriMonth').value || monthStr();
-      db.ref(`kanri/${mk2}/${el.dataset.del}`).remove().then(()=>toast('削除しました'));
+      const rec = kanriMonthData[el.dataset.del];
+      db.ref(`${ROOT}/kanri/${mk2}/${el.dataset.del}`).remove().then(()=>{
+        toast('削除しました');
+        if(rec && rec.photoIds) rec.photoIds.forEach(id=> db.ref(`${ROOT}/photos/${id}`).remove());
+      });
     });
   });
 }
@@ -708,10 +858,12 @@ function renderKanriList(){
 let taichoMonthRef = null;
 let taichoMonthData = {};
 let tItems = [];
+let tPhotoManager = null;
 
 function initTaichoTab(){
   $('taichoMonth').value = monthStr();
   $('tDate').value = todayStr();
+  tPhotoManager = createPhotoManager('t');
   tItems = [];
   for(let i=1;i<=10;i++) tItems.push({no:i, taicho:'', taiju:'', memo:''});
   renderTItemRows();
@@ -766,7 +918,7 @@ function updateTaichoAverages(){
 function attachTaichoListener(){
   const mk = $('taichoMonth').value || monthStr();
   if(taichoMonthRef) taichoMonthRef.off();
-  taichoMonthRef = db.ref('taicho/'+mk);
+  taichoMonthRef = db.ref(ROOT+'/taicho/'+mk);
   taichoMonthRef.on('value', (snap)=>{
     taichoMonthData = snap.val() || {};
     renderTaichoList();
@@ -780,10 +932,12 @@ function loadTaichoFormFromExisting(){
     tItems = (rec.items||[]).filter(Boolean).map(it=>({no:it.no,taicho:it.taicho||'',taiju:it.taiju||'',memo:it.memo||''}));
     if(tItems.length===0) for(let i=1;i<=5;i++) tItems.push({no:i,taicho:'',taiju:'',memo:''});
     $('tNote').value = rec.note || '';
+    tPhotoManager.setFromIds(rec.photoIds);
   } else {
     tItems = [];
     for(let i=1;i<=10;i++) tItems.push({no:i, taicho:'', taiju:'', memo:''});
     $('tNote').value = '';
+    tPhotoManager.reset();
   }
   renderTItemRows();
 }
@@ -791,19 +945,28 @@ function resetTaichoForm(){
   tItems = [];
   for(let i=1;i<=10;i++) tItems.push({no:i, taicho:'', taiju:'', memo:''});
   $('tNote').value='';
+  tPhotoManager.reset();
   renderTItemRows();
 }
-function saveTaicho(){
+async function saveTaicho(){
   if(!db){ toast('Firebase未設定のため保存できません'); return; }
   const date = $('tDate').value;
   if(!date){ toast('測定日を入力してください'); return; }
-  const mk = monthOf(date);
-  const cleanItems = tItems.filter(it=>String(it.no)!=='' || it.taicho!=='' || it.taiju!=='' || it.memo!=='');
-  const rec = { date, note: $('tNote').value.trim(), items: cleanItems, updatedAt: firebase.database.ServerValue.TIMESTAMP };
-  db.ref(`taicho/${mk}/${date}`).set(rec).then(()=>{
+  const btn = $('tSaveBtn');
+  btn.disabled = true;
+  try{
+    const photoIds = await tPhotoManager.saveAndGetIds();
+    const mk = monthOf(date);
+    const cleanItems = tItems.filter(it=>String(it.no)!=='' || it.taicho!=='' || it.taiju!=='' || it.memo!=='');
+    const rec = { date, note: $('tNote').value.trim(), items: cleanItems, photoIds: photoIds.length ? photoIds : null, updatedAt: firebase.database.ServerValue.TIMESTAMP };
+    await db.ref(`${ROOT}/taicho/${mk}/${date}`).set(rec);
     toast('保存しました');
     if(mk !== $('taichoMonth').value){ $('taichoMonth').value = mk; attachTaichoListener(); }
-  }).catch(err=>{ console.error(err); toast('保存に失敗しました'); });
+  } catch(err){
+    console.error(err); toast('保存に失敗しました');
+  } finally {
+    btn.disabled = false;
+  }
 }
 function taichoAvgOf(rec){
   const lens=(rec.items||[]).map(it=>parseNum(it&&it.taicho)).filter(n=>!isNaN(n));
@@ -825,9 +988,10 @@ function renderTaichoList(){
   $('taichoList').innerHTML = dates.map(date=>{
     const rec = taichoMonthData[date];
     const a = taichoAvgOf(rec);
+    const photoBadge = (rec.photoIds && rec.photoIds.length) ? `<span class="photocount">📷 ${rec.photoIds.length}</span>` : '';
     return `<div class="list-item" data-date="${date}">
       <button class="del" data-del="${date}" title="削除">🗑</button>
-      <div class="top"><span class="date">${fmtDate(date)}</span><span class="period AM" style="background:var(--teal)">${a.count}尾</span></div>
+      <div class="top"><span class="date">${fmtDate(date)}</span><span class="period AM" style="background:var(--teal)">${a.count}尾</span>${photoBadge}</div>
       <div class="meta">体長平均 ${fmtNum(a.avgLen,1)}cm ／ 体重平均 ${fmtNum(a.avgWeight,1)}g${rec.note? '<br>💬 '+escapeHtml(rec.note):''}</div>
     </div>`;
   }).join('');
@@ -842,9 +1006,13 @@ function renderTaichoList(){
   $('taichoList').querySelectorAll('[data-del]').forEach(el=>{
     el.addEventListener('click', (e)=>{
       e.stopPropagation();
-      if(!confirm('この測定記録を削除しますか？')) return;
+      if(!confirm('この測定記録を削除しますか？（添付写真も削除されます）')) return;
       const mk2 = $('taichoMonth').value || monthStr();
-      db.ref(`taicho/${mk2}/${el.dataset.del}`).remove().then(()=>toast('削除しました'));
+      const rec = taichoMonthData[el.dataset.del];
+      db.ref(`${ROOT}/taicho/${mk2}/${el.dataset.del}`).remove().then(()=>{
+        toast('削除しました');
+        if(rec && rec.photoIds) rec.photoIds.forEach(id=> db.ref(`${ROOT}/photos/${id}`).remove());
+      });
     });
   });
 }
@@ -869,7 +1037,7 @@ function initShiftTab(){
 function attachShiftListener(){
   const mk = $('shiftMonth').value || monthStr();
   if(shiftMonthRef) shiftMonthRef.off();
-  shiftMonthRef = db.ref('shift/'+mk);
+  shiftMonthRef = db.ref(ROOT+'/shift/'+mk);
   shiftMonthRef.on('value', (snap)=>{
     shiftMonthData = snap.val() || {};
     renderShiftList();
@@ -890,7 +1058,7 @@ function saveShift(){
   if(!date){ toast('日付を入力してください'); return; }
   const mk = monthOf(date);
   const rec = { date, am: $('sAm').value.trim(), pm: $('sPm').value.trim(), note: $('sNote').value.trim(), updatedAt: firebase.database.ServerValue.TIMESTAMP };
-  db.ref(`shift/${mk}/${date}`).set(rec).then(()=>{
+  db.ref(`${ROOT}/shift/${mk}/${date}`).set(rec).then(()=>{
     toast('保存しました');
     rememberStaffNames(rec.am); rememberStaffNames(rec.pm);
     if(mk !== $('shiftMonth').value){ $('shiftMonth').value = mk; attachShiftListener(); }
@@ -925,7 +1093,7 @@ function renderShiftList(){
       e.stopPropagation();
       if(!confirm('このシフトを削除しますか？')) return;
       const mk2 = $('shiftMonth').value || monthStr();
-      db.ref(`shift/${mk2}/${el.dataset.del}`).remove().then(()=>toast('削除しました'));
+      db.ref(`${ROOT}/shift/${mk2}/${el.dataset.del}`).remove().then(()=>toast('削除しました'));
     });
   });
 }
@@ -945,7 +1113,7 @@ function attachSummaryListeners(){
   const mk = $('summaryMonth').value || monthStr();
   ['kanri','taicho','shift'].forEach(kind=>{
     if(summaryRefs[kind]) summaryRefs[kind].off();
-    summaryRefs[kind] = db.ref(kind+'/'+mk);
+    summaryRefs[kind] = db.ref(ROOT+'/'+kind+'/'+mk);
     summaryRefs[kind].on('value', (snap)=>{
       summaryData[kind] = snap.val() || {};
       renderSummary();
@@ -1049,7 +1217,7 @@ async function drawGraph(){
   if(kind==='k'){
     const field = KANRI_FIELD_MAP[key];
     for(const mk of months){
-      const snap = await db.ref('kanri/'+mk).once('value');
+      const snap = await db.ref(ROOT+'/kanri/'+mk).once('value');
       const data = snap.val() || {};
       Object.keys(data).sort().forEach(k=>{
         const r = data[k];
@@ -1063,7 +1231,7 @@ async function drawGraph(){
     renderChart(labels, values, field.label+(field.unit?`(${field.unit})`:''));
   } else {
     for(const mk of months){
-      const snap = await db.ref('taicho/'+mk).once('value');
+      const snap = await db.ref(ROOT+'/taicho/'+mk).once('value');
       const data = snap.val() || {};
       Object.keys(data).sort().forEach(d=>{
         const rec = data[d];
