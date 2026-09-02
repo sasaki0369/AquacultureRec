@@ -221,9 +221,6 @@ nav.tabbar button.active{color:var(--teal);}
   <section id="screen-kanri" class="screen active">
     <div class="card">
       <h2>📋 管理表 <span class="badge">測定記録</span></h2>
-      <div class="monthbar">
-        <input type="month" id="kanriMonth">
-      </div>
 
       <label>日付</label>
       <input type="date" id="kDate">
@@ -267,6 +264,7 @@ nav.tabbar button.active{color:var(--teal);}
       <input type="file" id="kPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
       <div class="photogrid" id="kPhotoGrid"></div>
       <button type="button" class="btn btn-outline btn-sm" id="kPhotoAddBtn">＋ 写真を追加</button>
+      <div id="kClarityInfo" class="hint"></div>
 
       <div class="row-actions">
         <button class="btn btn-outline" id="kResetBtn">クリア</button>
@@ -284,9 +282,6 @@ nav.tabbar button.active{color:var(--teal);}
   <section id="screen-taicho" class="screen">
     <div class="card">
       <h2>📏 体長・体重 <span class="badge">測定記録</span></h2>
-      <div class="monthbar">
-        <input type="month" id="taichoMonth">
-      </div>
 
       <label>測定日</label>
       <input type="date" id="tDate">
@@ -327,9 +322,6 @@ nav.tabbar button.active{color:var(--teal);}
   <section id="screen-shift" class="screen">
     <div class="card">
       <h2>🗓️ シフト表</h2>
-      <div class="monthbar">
-        <input type="month" id="shiftMonth">
-      </div>
 
       <label>日付</label>
       <input type="date" id="sDate">
@@ -458,7 +450,8 @@ const KANRI_FIELDS = [
   {key:'no2',      label:'亜硝酸NO2',     unit:'ppm'},
   {key:'ozone',    label:'オゾン',        unit:'ppm'},
   {key:'suishin',  label:'水深',          unit:'cm'},
-  {key:'toyu',     label:'灯油残量',      unit:''}
+  {key:'toyu',     label:'灯油残量',      unit:''},
+  {key:'clarity',  label:'透明度目安',    unit:''}
 ];
 const KANRI_FIELD_MAP = Object.fromEntries(KANRI_FIELDS.map(f=>[f.key,f]));
 
@@ -476,6 +469,11 @@ function monthStr(){
   return d.getFullYear()+'-'+pad(d.getMonth()+1);
 }
 function monthOf(dateStr){ return dateStr ? dateStr.slice(0,7) : ''; }
+function monthLabel(mk){
+  if(!mk) return '';
+  const [y,m] = mk.split('-');
+  return `${y}年${parseInt(m)}月`;
+}
 function weekdayOf(dateStr){
   if(!dateStr) return '';
   const d = new Date(dateStr+'T00:00:00');
@@ -600,7 +598,50 @@ function compressImage(file){
     reader.readAsDataURL(file);
   });
 }
-function createPhotoManager(prefix){
+/* 写真から「透明度目安」を推定する簡易スコア（AIモデルではなく画像処理による相対指標）。
+   画像を縮小しグレースケール化した上でラプラシアン（輪郭検出）の標準偏差を取り、
+   輪郭のくっきり度合い＝水の透明感の目安として数値化する。
+   照明条件・撮影角度に左右される「相対値」であり、絶対的な透明度（NTU等）の実測値ではない点に注意。 */
+function computeClarityScore(dataUrl){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      try{
+        const SIZE = 220;
+        let tw, th;
+        if(img.width >= img.height){ th = SIZE; tw = Math.round(img.width * SIZE / img.height); }
+        else { tw = SIZE; th = Math.round(img.height * SIZE / img.width); }
+        const canvas = document.createElement('canvas');
+        canvas.width = tw; canvas.height = th;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, tw, th);
+        const imgData = ctx.getImageData(0, 0, tw, th).data;
+        const gray = new Float32Array(tw*th);
+        for(let i=0, p=0; i<imgData.length; i+=4, p++){
+          gray[p] = 0.299*imgData[i] + 0.587*imgData[i+1] + 0.114*imgData[i+2];
+        }
+        let sum = 0, sumSq = 0, count = 0;
+        for(let y=1; y<th-1; y++){
+          for(let x=1; x<tw-1; x++){
+            const idx = y*tw + x;
+            const lap = gray[idx-tw] + gray[idx+tw] + gray[idx-1] + gray[idx+1] - 4*gray[idx];
+            sum += lap; sumSq += lap*lap; count++;
+          }
+        }
+        if(count === 0){ resolve(null); return; }
+        const mean = sum/count;
+        const variance = Math.max(0, sumSq/count - mean*mean);
+        const score = Math.sqrt(variance) * 3;
+        resolve(Math.round(score*10)/10);
+      } catch(e){
+        resolve(null);
+      }
+    };
+    img.onerror = ()=> resolve(null);
+    img.src = dataUrl;
+  });
+}
+function createPhotoManager(prefix, onChange){
   const state = { items: [], removedIds: [] }; // items: {id?, dataUrl}
   const grid = $(prefix+'PhotoGrid');
   const input = $(prefix+'PhotoInput');
@@ -620,6 +661,7 @@ function createPhotoManager(prefix){
         render();
       });
     });
+    if(onChange) onChange();
   }
 
   addBtn.addEventListener('click', ()=> input.click());
@@ -672,7 +714,8 @@ function createPhotoManager(prefix){
       }
       state.removedIds = [];
       return ids;
-    }
+    },
+    getDataUrls(){ return state.items.map(p=>p.dataUrl); }
   };
 }
 
@@ -724,22 +767,31 @@ let kanriMonthRef = null;
 let kanriMonthData = {};
 let kSelectedPeriod = 'AM';
 let kPhotoManager = null;
+let kCurrentMonth = null;
 
 function initKanriTab(){
-  $('kanriMonth').value = monthStr();
   $('kDate').value = todayStr();
-  kPhotoManager = createPhotoManager('k');
+  kCurrentMonth = monthOf($('kDate').value);
+  kPhotoManager = createPhotoManager('k', updateKClarityPreview);
 
   $('kPeriodAM').addEventListener('click', ()=>setKPeriod('AM'));
   $('kPeriodPM').addEventListener('click', ()=>setKPeriod('PM'));
   setKPeriod('AM');
 
-  $('kanriMonth').addEventListener('change', ()=>{ attachKanriListener(); });
-  $('kDate').addEventListener('change', loadKanriFormFromExisting);
+  $('kDate').addEventListener('change', onKDateChange);
   $('kResetBtn').addEventListener('click', resetKanriForm);
   $('kSaveBtn').addEventListener('click', saveKanri);
 
   attachKanriListener();
+}
+function onKDateChange(){
+  const mk = monthOf($('kDate').value);
+  if(mk && mk !== kCurrentMonth){
+    kCurrentMonth = mk;
+    attachKanriListener();
+  } else {
+    loadKanriFormFromExisting();
+  }
 }
 function setKPeriod(p){
   kSelectedPeriod = p;
@@ -752,7 +804,8 @@ function setKPeriod(p){
 function kanriKeyOf(date, period){ return `${date}_${period}`; }
 
 function attachKanriListener(){
-  const mk = $('kanriMonth').value || monthStr();
+  const mk = kCurrentMonth || monthOf($('kDate').value) || monthStr();
+  kCurrentMonth = mk;
   if(kanriMonthRef) kanriMonthRef.off();
   kanriMonthRef = db.ref(ROOT+'/kanri/'+mk);
   kanriMonthRef.on('value', (snap)=>{
@@ -760,6 +813,37 @@ function attachKanriListener(){
     renderKanriList();
     loadKanriFormFromExisting();
   });
+}
+/* 今月内で、指定の日付・時間帯より前の記録から、直近の透明度目安を探す（月をまたぐ比較は行わない） */
+function findPreviousClarity(beforeDate, beforePeriod){
+  const targetKey = kanriKeyOf(beforeDate, beforePeriod);
+  const keys = Object.keys(kanriMonthData).sort().filter(k=> k < targetKey);
+  for(let i=keys.length-1; i>=0; i--){
+    const rec = kanriMonthData[keys[i]];
+    if(rec && rec.clarity){
+      return { value: parseFloat(rec.clarity), date: rec.date, period: rec.period };
+    }
+  }
+  return null;
+}
+async function updateKClarityPreview(){
+  const infoEl = $('kClarityInfo');
+  const urls = kPhotoManager.getDataUrls();
+  if(urls.length === 0){ infoEl.textContent = ''; return; }
+  infoEl.textContent = '透明度目安を計算中…';
+  const scores = (await Promise.all(urls.map(computeClarityScore))).filter(s=>s!==null);
+  if(scores.length === 0){ infoEl.textContent = ''; return; }
+  const avg = scores.reduce((a,b)=>a+b,0)/scores.length;
+  const prev = findPreviousClarity($('kDate').value, kSelectedPeriod);
+  let cmp;
+  if(prev){
+    const diff = avg - prev.value;
+    const sign = diff > 0 ? '+' : '';
+    cmp = `（前回 ${fmtDate(prev.date)}${prev.period} 比 ${sign}${fmtNum(diff,1)}）`;
+  } else {
+    cmp = '（今月内に比較できる前回データなし）';
+  }
+  infoEl.textContent = `透明度目安: ${fmtNum(avg,1)} ${cmp} ※写真から算出した相対的な目安値です`;
 }
 function loadKanriFormFromExisting(){
   const date = $('kDate').value;
@@ -794,6 +878,12 @@ async function saveKanri(){
   btn.disabled = true;
   try{
     const photoIds = await kPhotoManager.saveAndGetIds();
+    const urls = kPhotoManager.getDataUrls();
+    let clarity = '';
+    if(urls.length){
+      const scores = (await Promise.all(urls.map(computeClarityScore))).filter(s=>s!==null);
+      if(scores.length) clarity = (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1);
+    }
     const mk = monthOf(date);
     const key = kanriKeyOf(date, kSelectedPeriod);
     const rec = {
@@ -813,13 +903,14 @@ async function saveKanri(){
       suishin: $('kSuishin').value.trim(),
       toyu: $('kToyu').value.trim(),
       memo: $('kMemo').value.trim(),
+      clarity,
       photoIds: photoIds.length ? photoIds : null,
       updatedAt: firebase.database.ServerValue.TIMESTAMP
     };
     await db.ref(`${ROOT}/kanri/${mk}/${key}`).set(rec);
     toast('保存しました');
     rememberStaffNames(rec.staff);
-    if(mk !== $('kanriMonth').value){ $('kanriMonth').value = mk; attachKanriListener(); }
+    if(mk !== kCurrentMonth){ kCurrentMonth = mk; attachKanriListener(); }
   } catch(err){
     console.error(err); toast('保存に失敗しました');
   } finally {
@@ -827,20 +918,33 @@ async function saveKanri(){
   }
 }
 function renderKanriList(){
-  const mk = $('kanriMonth').value || monthStr();
-  $('kanriListTitle').textContent = mk + ' の記録';
+  const mk = kCurrentMonth || monthStr();
+  $('kanriListTitle').textContent = monthLabel(mk) + 'の記録';
   const keys = Object.keys(kanriMonthData).sort();
   if(keys.length===0){
     $('kanriList').innerHTML = '<div class="empty">この月の記録はまだありません</div>';
     return;
   }
+  let prevClarity = null;
   $('kanriList').innerHTML = keys.map(key=>{
     const r = kanriMonthData[key];
-    const parts = KANRI_FIELDS.filter(f=>r[f.key]).map(f=>`${f.label} ${escapeHtml(r[f.key])}${f.unit}`);
+    const parts = KANRI_FIELDS.filter(f=>f.key!=='clarity' && r[f.key]).map(f=>`${f.label} ${escapeHtml(r[f.key])}${f.unit}`);
     const photoBadge = (r.photoIds && r.photoIds.length) ? `<span class="photocount">📷 ${r.photoIds.length}</span>` : '';
+    let clarityBadge = '';
+    if(r.clarity){
+      const val = parseFloat(r.clarity);
+      if(prevClarity !== null){
+        const diff = val - prevClarity;
+        const sign = diff > 0 ? '+' : '';
+        clarityBadge = `<span class="photocount" style="background:#eaf2fb;color:#2f6fb0;">💧${fmtNum(val,1)}(${sign}${fmtNum(diff,1)})</span>`;
+      } else {
+        clarityBadge = `<span class="photocount" style="background:#eaf2fb;color:#2f6fb0;">💧${fmtNum(val,1)}</span>`;
+      }
+      prevClarity = val;
+    }
     return `<div class="list-item" data-key="${key}">
       <button class="del" data-del="${key}" title="削除">🗑</button>
-      <div class="top"><span class="date">${fmtDate(r.date)}</span><span class="period ${r.period}">${r.period}</span>${photoBadge}</div>
+      <div class="top"><span class="date">${fmtDate(r.date)}</span><span class="period ${r.period}">${r.period}</span>${photoBadge}${clarityBadge}</div>
       <div class="meta">${escapeHtml(r.staff||'担当者未記入')}${parts.length? ' ／ '+parts.join('　') : ''}${r.memo? '<br>💬 '+escapeHtml(r.memo):''}</div>
     </div>`;
   }).join('');
@@ -857,7 +961,7 @@ function renderKanriList(){
     el.addEventListener('click', (e)=>{
       e.stopPropagation();
       if(!confirm('この記録を削除しますか？（添付写真も削除されます）')) return;
-      const mk2 = $('kanriMonth').value || monthStr();
+      const mk2 = kCurrentMonth || monthStr();
       const rec = kanriMonthData[el.dataset.del];
       db.ref(`${ROOT}/kanri/${mk2}/${el.dataset.del}`).remove().then(()=>{
         toast('削除しました');
@@ -874,17 +978,17 @@ let taichoMonthRef = null;
 let taichoMonthData = {};
 let tItems = [];
 let tPhotoManager = null;
+let tCurrentMonth = null;
 
 function initTaichoTab(){
-  $('taichoMonth').value = monthStr();
   $('tDate').value = todayStr();
+  tCurrentMonth = monthOf($('tDate').value);
   tPhotoManager = createPhotoManager('t');
   tItems = [];
   for(let i=1;i<=10;i++) tItems.push({no:i, taicho:'', taiju:'', memo:''});
   renderTItemRows();
 
-  $('taichoMonth').addEventListener('change', attachTaichoListener);
-  $('tDate').addEventListener('change', loadTaichoFormFromExisting);
+  $('tDate').addEventListener('change', onTDateChange);
   $('tAddRowBtn').addEventListener('click', ()=>{
     tItems.push({no: tItems.length+1, taicho:'', taiju:'', memo:''});
     renderTItemRows();
@@ -930,8 +1034,18 @@ function updateTaichoAverages(){
     count: tItems.filter(it=>it.taicho!==''||it.taiju!=='').length
   };
 }
+function onTDateChange(){
+  const mk = monthOf($('tDate').value);
+  if(mk && mk !== tCurrentMonth){
+    tCurrentMonth = mk;
+    attachTaichoListener();
+  } else {
+    loadTaichoFormFromExisting();
+  }
+}
 function attachTaichoListener(){
-  const mk = $('taichoMonth').value || monthStr();
+  const mk = tCurrentMonth || monthOf($('tDate').value) || monthStr();
+  tCurrentMonth = mk;
   if(taichoMonthRef) taichoMonthRef.off();
   taichoMonthRef = db.ref(ROOT+'/taicho/'+mk);
   taichoMonthRef.on('value', (snap)=>{
@@ -976,7 +1090,7 @@ async function saveTaicho(){
     const rec = { date, note: $('tNote').value.trim(), items: cleanItems, photoIds: photoIds.length ? photoIds : null, updatedAt: firebase.database.ServerValue.TIMESTAMP };
     await db.ref(`${ROOT}/taicho/${mk}/${date}`).set(rec);
     toast('保存しました');
-    if(mk !== $('taichoMonth').value){ $('taichoMonth').value = mk; attachTaichoListener(); }
+    if(mk !== tCurrentMonth){ tCurrentMonth = mk; attachTaichoListener(); }
   } catch(err){
     console.error(err); toast('保存に失敗しました');
   } finally {
@@ -993,8 +1107,8 @@ function taichoAvgOf(rec){
   };
 }
 function renderTaichoList(){
-  const mk = $('taichoMonth').value || monthStr();
-  $('taichoListTitle').textContent = mk + ' の測定';
+  const mk = tCurrentMonth || monthStr();
+  $('taichoListTitle').textContent = monthLabel(mk) + 'の測定';
   const dates = Object.keys(taichoMonthData).sort();
   if(dates.length===0){
     $('taichoList').innerHTML = '<div class="empty">この月の測定記録はまだありません</div>';
@@ -1022,7 +1136,7 @@ function renderTaichoList(){
     el.addEventListener('click', (e)=>{
       e.stopPropagation();
       if(!confirm('この測定記録を削除しますか？（添付写真も削除されます）')) return;
-      const mk2 = $('taichoMonth').value || monthStr();
+      const mk2 = tCurrentMonth || monthStr();
       const rec = taichoMonthData[el.dataset.del];
       db.ref(`${ROOT}/taicho/${mk2}/${el.dataset.del}`).remove().then(()=>{
         toast('削除しました');
@@ -1037,20 +1151,30 @@ function renderTaichoList(){
    ========================================================================= */
 let shiftMonthRef = null;
 let shiftMonthData = {};
+let sCurrentMonth = null;
 
 function initShiftTab(){
-  $('shiftMonth').value = monthStr();
   $('sDate').value = todayStr();
+  sCurrentMonth = monthOf($('sDate').value);
 
-  $('shiftMonth').addEventListener('change', attachShiftListener);
-  $('sDate').addEventListener('change', loadShiftFormFromExisting);
+  $('sDate').addEventListener('change', onSDateChange);
   $('sResetBtn').addEventListener('click', resetShiftForm);
   $('sSaveBtn').addEventListener('click', saveShift);
 
   attachShiftListener();
 }
+function onSDateChange(){
+  const mk = monthOf($('sDate').value);
+  if(mk && mk !== sCurrentMonth){
+    sCurrentMonth = mk;
+    attachShiftListener();
+  } else {
+    loadShiftFormFromExisting();
+  }
+}
 function attachShiftListener(){
-  const mk = $('shiftMonth').value || monthStr();
+  const mk = sCurrentMonth || monthOf($('sDate').value) || monthStr();
+  sCurrentMonth = mk;
   if(shiftMonthRef) shiftMonthRef.off();
   shiftMonthRef = db.ref(ROOT+'/shift/'+mk);
   shiftMonthRef.on('value', (snap)=>{
@@ -1076,12 +1200,12 @@ function saveShift(){
   db.ref(`${ROOT}/shift/${mk}/${date}`).set(rec).then(()=>{
     toast('保存しました');
     rememberStaffNames(rec.am); rememberStaffNames(rec.pm);
-    if(mk !== $('shiftMonth').value){ $('shiftMonth').value = mk; attachShiftListener(); }
+    if(mk !== sCurrentMonth){ sCurrentMonth = mk; attachShiftListener(); }
   }).catch(err=>{ console.error(err); toast('保存に失敗しました'); });
 }
 function renderShiftList(){
-  const mk = $('shiftMonth').value || monthStr();
-  $('shiftListTitle').textContent = mk + ' のシフト';
+  const mk = sCurrentMonth || monthStr();
+  $('shiftListTitle').textContent = monthLabel(mk) + 'のシフト';
   const dates = Object.keys(shiftMonthData).sort();
   if(dates.length===0){
     $('shiftList').innerHTML = '<div class="empty">この月のシフトはまだありません</div>';
@@ -1107,7 +1231,7 @@ function renderShiftList(){
     el.addEventListener('click', (e)=>{
       e.stopPropagation();
       if(!confirm('このシフトを削除しますか？')) return;
-      const mk2 = $('shiftMonth').value || monthStr();
+      const mk2 = sCurrentMonth || monthStr();
       db.ref(`${ROOT}/shift/${mk2}/${el.dataset.del}`).remove().then(()=>toast('削除しました'));
     });
   });
