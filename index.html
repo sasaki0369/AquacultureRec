@@ -262,7 +262,7 @@ input.carried{
       <input type="text" id="kStaff" list="staffList" placeholder="例：下高原、西城">
       <div class="staffchips pick" id="kStaffChips"></div>
 
-      <div class="carriedhint">薄字の項目は前回の値を仮表示しています。変更がなければそのまま保存できます。</div>
+      <div class="carriedhint">薄字の項目は、当月の直近5件の記録の平均値（各項目で記録されている最小の小数桁数より1桁細かく丸めた値）を仮入力しています。変更がなければそのまま保存できます。</div>
       <div class="stepgrid" id="kStepGrid">
         <div class="stepfield"><label>外気温(℃)</label>
           <div class="stepper"><button type="button" class="stepbtn" data-target="kGaiki" data-step="-0.5">－</button><input type="text" inputmode="decimal" id="kGaiki"><button type="button" class="stepbtn" data-target="kGaiki" data-step="0.5">＋</button></div>
@@ -1004,12 +1004,35 @@ function findPreviousClarity(beforeDate, beforePeriod){
   }
   return null;
 }
-/* 今月内で、指定の日付・時間帯より前の直近の記録（入力を楽にするための値の引き継ぎ用） */
-function findPreviousKanriRecord(beforeDate, beforePeriod){
+/* 今月内で、指定の日付・時間帯より前の直近レコードを新しい順に最大n件取得（入力を楽にするための初期値算出用） */
+function findRecentKanriRecords(beforeDate, beforePeriod, n){
   const targetKey = kanriKeyOf(beforeDate, beforePeriod);
   const keys = Object.keys(kanriMonthData).sort().filter(k=> k < targetKey);
-  if(keys.length === 0) return null;
-  return kanriMonthData[keys[keys.length-1]];
+  const recentKeys = keys.slice(Math.max(0, keys.length - n)).reverse();
+  return recentKeys.map(k=> kanriMonthData[k]);
+}
+/* 文字列として記録された数値の小数桁数を数える（"25.40"のような末尾ゼロも桁数として尊重する） */
+function countDecimals(s){
+  if(s===undefined || s===null) return 0;
+  const str = String(s).trim();
+  const idx = str.indexOf('.');
+  return idx === -1 ? 0 : (str.length - idx - 1);
+}
+/* 直近レコード群からある項目の平均値を算出し、記録されている最小の小数桁数より1桁細かい桁数で丸めて返す。
+   有効な数値サンプルが1件も無ければnullを返す。 */
+function averageOfRecentRecords(records, key){
+  const samples = [];
+  (records||[]).forEach(rec=>{
+    if(!rec) return;
+    const raw = rec[key];
+    const n = parseNum(raw);
+    if(!isNaN(n)) samples.push({ n, decimals: countDecimals(raw) });
+  });
+  if(samples.length === 0) return null;
+  const avg = samples.reduce((a,b)=>a+b.n, 0) / samples.length;
+  const minDecimals = Math.min(...samples.map(s=>s.decimals));
+  const targetDecimals = minDecimals + 1;
+  return avg.toFixed(targetDecimals);
 }
 async function updateKClarityPreview(){
   const infoEl = $('kClarityInfo');
@@ -1047,11 +1070,12 @@ function loadKanriFormFromExisting(){
   } else {
     $('kStaff').value = '';
     $('kMemo').value = '';
-    const prev = findPreviousKanriRecord(date, kSelectedPeriod);
+    const recentRecs = findRecentKanriRecords(date, kSelectedPeriod, 5);
     Object.keys(fieldIds).forEach(k=>{
       const el = $(fieldIds[k]);
-      if(prev && prev[k]){
-        el.value = prev[k];
+      const avgVal = averageOfRecentRecords(recentRecs, k);
+      if(avgVal !== null){
+        el.value = avgVal;
         el.classList.add('carried');
       } else {
         el.value = '';
