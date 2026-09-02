@@ -420,7 +420,7 @@ nav.tabbar button.active{color:var(--teal);}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-auth-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-database-compat.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
 <script>
 /* =========================================================================
@@ -1286,6 +1286,9 @@ async function drawGraph(){
   }
 }
 function renderChart(labels, values, labelText){
+  if(typeof Chart === 'undefined'){
+    throw new Error('グラフ描画ライブラリ(Chart.js)の読み込みに失敗しました。通信環境をご確認のうえ、ページを再読み込みしてください。');
+  }
   const ctx = $('gCanvas').getContext('2d');
   if(chartInstance) chartInstance.destroy();
   chartInstance = new Chart(ctx, {
