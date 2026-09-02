@@ -215,6 +215,7 @@ nav.tabbar button.active{color:var(--teal);}
   <div id="setupWarn" class="setup-warn" style="display:none;">
     ⚠️ Firebaseの設定が未入力です。<code>index.html</code> 内の <code>firebaseConfig</code> をご自身のFirebaseプロジェクトの値に書き換えてください（下部の説明を参照）。今は保存・同期が動作しません。
   </div>
+  <div id="authErrorWarn" class="setup-warn" style="display:none;"></div>
 
   <!-- ============ 管理表タブ ============ -->
   <section id="screen-kanri" class="screen active">
@@ -544,7 +545,21 @@ if(CONFIG_IS_PLACEHOLDER){
   }).catch((err)=>{
     console.error('auth error', err);
     $('connText').textContent = '認証エラー';
-    toast('Firebase認証に失敗しました。セキュリティルールをご確認ください。');
+    toast('Firebase認証に失敗しました');
+    const code = err && err.code ? err.code : '';
+    let hint = '';
+    if(code === 'auth/admin-restricted-operation' || code === 'auth/operation-not-allowed'){
+      hint = 'Firebaseコンソール→Authentication→Sign-in method で「匿名」プロバイダが無効になっている可能性があります。有効化してください。';
+    } else if(code === 'auth/unauthorized-domain'){
+      hint = `Firebaseコンソール→Authentication→Settings→承認済みドメイン に、現在このページを開いているドメイン（${location.hostname}）が登録されていない可能性があります。追加してください。`;
+    } else if(code === 'auth/network-request-failed'){
+      hint = 'ネットワーク接続を確認してください（通信がブロックされている可能性があります）。';
+    } else {
+      hint = 'Firebaseコンソールの Authentication で「匿名」サインインが有効になっているか、Authentication→Settings→承認済みドメインに現在のドメインが登録されているかをご確認ください。';
+    }
+    const warn = $('authErrorWarn');
+    warn.style.display = 'block';
+    warn.innerHTML = `⚠️ Firebase認証エラー${code ? '（'+escapeHtml(code)+'）' : ''}<br>${hint}<br><span style="opacity:.75;">現在のドメイン: ${escapeHtml(location.hostname)} ／ 詳細: ${escapeHtml(err && err.message || '')}</span>`;
   });
 
   firebase.auth().onAuthStateChanged((user)=>{
@@ -642,7 +657,7 @@ function createPhotoManager(prefix){
             state.items.push({id, dataUrl:v.dataUrl});
             render();
           }
-        });
+        }).catch(err=>{ console.error('photo load error', err); });
       });
     },
     async saveAndGetIds(){
@@ -1203,53 +1218,71 @@ function initGraphTab(){
   $('gFrom').value = mk; $('gTo').value = mk;
   $('gDrawBtn').addEventListener('click', drawGraph);
 }
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_, reject)=> setTimeout(()=> reject(new Error('タイムアウトしました（通信状況をご確認ください）')), ms))
+  ]);
+}
 async function drawGraph(){
   const sel = $('gField').value;
   const from = $('gFrom').value, to = $('gTo').value;
   if(!from || !to){ toast('期間を指定してください'); return; }
   const months = monthRange(from, to);
   if(months.length===0){ toast('期間が正しくありません'); return; }
+  if(!db){ toast('Firebase未設定のためグラフを表示できません'); return; }
   $('gHint').textContent = '読み込み中…';
+  const drawBtn = $('gDrawBtn');
+  drawBtn.disabled = true;
 
   const [kind, key] = sel.split(':');
   let labels = [], values = [];
 
-  if(kind==='k'){
-    const field = KANRI_FIELD_MAP[key];
-    for(const mk of months){
-      const snap = await db.ref(ROOT+'/kanri/'+mk).once('value');
-      const data = snap.val() || {};
-      Object.keys(data).sort().forEach(k=>{
-        const r = data[k];
-        const n = parseNum(r[key]);
-        if(!isNaN(n)){
-          labels.push(fmtDate(r.date)+' '+r.period);
-          values.push(n);
-        }
-      });
+  try{
+    if(kind==='k'){
+      const field = KANRI_FIELD_MAP[key];
+      for(const mk of months){
+        const snap = await withTimeout(db.ref(ROOT+'/kanri/'+mk).once('value'), 15000);
+        const data = snap.val() || {};
+        Object.keys(data).sort().forEach(k=>{
+          const r = data[k];
+          const n = parseNum(r[key]);
+          if(!isNaN(n)){
+            labels.push(fmtDate(r.date)+' '+r.period);
+            values.push(n);
+          }
+        });
+      }
+      renderChart(labels, values, field.label+(field.unit?`(${field.unit})`:''));
+    } else {
+      for(const mk of months){
+        const snap = await withTimeout(db.ref(ROOT+'/taicho/'+mk).once('value'), 15000);
+        const data = snap.val() || {};
+        Object.keys(data).sort().forEach(d=>{
+          const rec = data[d];
+          const a = taichoAvgOf(rec);
+          const v = key==='len' ? a.avgLen : a.avgWeight;
+          if(v!==null){
+            labels.push(fmtDate(d));
+            values.push(v);
+          }
+        });
+      }
+      renderChart(labels, values, key==='len' ? '体長平均(cm)' : '体重平均(g)');
     }
-    renderChart(labels, values, field.label+(field.unit?`(${field.unit})`:''));
-  } else {
-    for(const mk of months){
-      const snap = await db.ref(ROOT+'/taicho/'+mk).once('value');
-      const data = snap.val() || {};
-      Object.keys(data).sort().forEach(d=>{
-        const rec = data[d];
-        const a = taichoAvgOf(rec);
-        const v = key==='len' ? a.avgLen : a.avgWeight;
-        if(v!==null){
-          labels.push(fmtDate(d));
-          values.push(v);
-        }
-      });
-    }
-    renderChart(labels, values, key==='len' ? '体長平均(cm)' : '体重平均(g)');
-  }
 
-  if(values.length===0){
-    $('gHint').textContent = '指定期間に表示できる数値データがありません。';
-  } else {
-    $('gHint').textContent = `${values.length}件のデータを表示しています（数値として認識できない値は除外されます）。`;
+    if(values.length===0){
+      $('gHint').textContent = '指定期間に表示できる数値データがありません。';
+    } else {
+      $('gHint').textContent = `${values.length}件のデータを表示しています（数値として認識できない値は除外されます）。`;
+    }
+  } catch(err){
+    console.error('graph load error', err);
+    const code = err && err.code ? err.code : '';
+    $('gHint').textContent = `グラフの読み込みに失敗しました${code? '（'+code+'）':''}。${escapeHtml(err && err.message || '')}`;
+    toast('グラフの読み込みに失敗しました');
+  } finally {
+    drawBtn.disabled = false;
   }
 }
 function renderChart(labels, values, labelText){
