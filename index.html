@@ -361,6 +361,12 @@ input.carried{
         <div class="pill"><div class="num" id="tCount">0</div><div class="lbl">尾数</div></div>
       </div>
 
+      <div class="grid2">
+        <div><label>死亡数(尾)</label><input type="text" inputmode="numeric" id="tMortality" placeholder="前回測定からの死亡数"></div>
+        <div><label>取り上げ尾数(尾)</label><input type="text" inputmode="numeric" id="tHarvested" placeholder="出荷・選別等"></div>
+      </div>
+      <div class="hint">死亡数・取り上げ尾数は、前回の測定からこの測定までの間に発生した尾数を入力してください（分析タブの尾数・生存率の推定に使用します）。</div>
+
       <label>平均値・全体メモ</label>
       <textarea id="tNote" placeholder="この測定日全体についてのメモ"></textarea>
 
@@ -469,6 +475,89 @@ input.carried{
     </div>
   </section>
 
+  <!-- ============ 分析タブ ============ -->
+  <section id="screen-analysis" class="screen">
+    <div class="card">
+      <h2>🔬 分析 <span class="badge">全期間データ</span></h2>
+      <div class="hint" id="anLoadHint">データを読み込み中…</div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">⚙️ 分析設定</div>
+      <div class="hint">尾数の推移や飼料転換効率を計算するには初期尾数の入力が必要です。管理範囲は空欄のままなら、その項目の異常検知は行いません。全て任意入力で、未入力の項目に関する分析はスキップされます。</div>
+      <div class="grid2">
+        <div><label>初期尾数(尾)</label><input type="text" inputmode="numeric" id="anInitialStock" placeholder="例：1000"></div>
+        <div><label>目標体重(g)</label><input type="text" inputmode="decimal" id="anTargetWeight" placeholder="例：50"></div>
+      </div>
+      <div class="section-title" style="margin-top:14px;">水質などの管理範囲（下限〜上限）</div>
+      <div id="anThresholdGrid"></div>
+      <button class="btn btn-primary btn-block" id="anSaveSettingsBtn" style="margin-top:10px;">分析設定を保存</button>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🐟 成長・生育分析</div>
+      <div id="anGrowthStats" class="statgrid"><div class="empty">体長・体重のデータがありません</div></div>
+      <div class="chartwrap" id="anGrowthChartWrap" style="display:none;"><canvas id="anGrowthChart"></canvas></div>
+      <div class="hint" id="anGrowthHint"></div>
+      <div class="divider"></div>
+      <div class="section-title">出荷サイズ到達予測</div>
+      <div class="hint">上の「目標体重」と、体重の増加ペース（直近の測定からの線形回帰）から到達予測日を計算します。</div>
+      <div class="hint" id="anForecastResult"></div>
+      <div class="divider"></div>
+      <div class="section-title">測定ごとの詳細（増重量・SGR・肥満度指数・ばらつき）</div>
+      <div class="tablewrap"><table class="datatable" id="anGrowthTable"></table></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">💧 水質・環境と成長の相関分析</div>
+      <div class="hint">管理表の2項目、または管理表項目と体長・体重の月平均との相関係数（ピアソンのr）を計算します。r は -1〜+1 の値で、絶対値が大きいほど関係が強いことを示す目安です（相関があっても因果関係があるとは限りません）。</div>
+      <label>項目1（X）</label>
+      <select id="anCorrX"></select>
+      <label>項目2（Y）</label>
+      <select id="anCorrY"></select>
+      <button class="btn btn-outline btn-block" id="anCorrBtn" style="margin-top:8px;">相関を計算</button>
+      <div class="hint" id="anCorrResult"></div>
+      <div class="chartwrap" id="anCorrChartWrap" style="display:none;"><canvas id="anCorrChart"></canvas></div>
+      <div class="divider"></div>
+      <div class="section-title">外気温・室内温・水温の差</div>
+      <div id="anTempDiffStats" class="statgrid"><div class="empty">データがありません</div></div>
+      <div class="divider"></div>
+      <div class="section-title">飼料転換効率（FCR）</div>
+      <div class="hint" id="anFcrResult">初期尾数を設定すると、測定期間ごとの推定飼料転換効率（給餌量合計 ÷ 推定バイオマス増加量）を計算します。</div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🌊 透明度分析</div>
+      <div id="anClarityStats" class="statgrid"><div class="empty">透明度のデータがありません</div></div>
+      <div class="hint" id="anClarityCorrResult"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">👥 運用・記録状況分析</div>
+      <div class="section-title" style="margin-top:0;font-size:12px;">担当者別の記録件数（管理表）</div>
+      <div id="anStaffCounts" class="hint">データがありません</div>
+      <div class="divider"></div>
+      <div class="section-title" style="font-size:12px;">記録漏れ（AM/PMどちらか未記録の日）</div>
+      <div class="hint" id="anMissingRecords"></div>
+      <div class="divider"></div>
+      <div class="section-title" style="font-size:12px;">灯油残量の消費予測</div>
+      <div class="hint" id="anKeroseneForecast"></div>
+      <div class="divider"></div>
+      <div class="section-title" style="font-size:12px;">シフト予定と管理表の記録者の突合</div>
+      <div class="hint" id="anShiftAudit"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🚨 異常検知・アラート</div>
+      <div class="hint">上の「分析設定」で管理範囲を設定した項目について、範囲外の記録と、記録ごとの急な変化（同項目の過去の変化幅と比べて大きく変化した記録）を一覧表示します。</div>
+      <div class="section-title" style="font-size:12px;">管理範囲を外れた記録</div>
+      <div id="anThresholdAlerts" class="hint">分析設定で管理範囲を入力すると表示されます</div>
+      <div class="divider"></div>
+      <div class="section-title" style="font-size:12px;">急な変化があった記録</div>
+      <div id="anSpikeAlerts" class="hint">データがありません</div>
+    </div>
+  </section>
+
 </main>
 
 <datalist id="staffList"></datalist>
@@ -479,6 +568,7 @@ input.carried{
   <button data-screen="shift"><span class="ic">🗓️</span><span class="lb">シフト</span></button>
   <button data-screen="summary"><span class="ic">📊</span><span class="lb">集計</span></button>
   <button data-screen="graph"><span class="ic">📈</span><span class="lb">グラフ</span></button>
+  <button data-screen="analysis"><span class="ic">🔬</span><span class="lb">分析</span></button>
 </nav>
 
 <div class="toast" id="toast"></div>
@@ -911,6 +1001,7 @@ function initTabData(){
   initShiftTab();
   initSummaryTab();
   initGraphTab();
+  initAnalysisTab();
 }
 
 /* =========================================================================
@@ -1288,11 +1379,15 @@ function loadTaichoFormFromExisting(){
     tItems = (rec.items||[]).filter(Boolean).map(it=>({no:it.no,taicho:it.taicho||'',taiju:it.taiju||'',memo:it.memo||''}));
     if(tItems.length===0) for(let i=1;i<=5;i++) tItems.push({no:i,taicho:'',taiju:'',memo:''});
     $('tNote').value = rec.note || '';
+    $('tMortality').value = rec.mortality || '';
+    $('tHarvested').value = rec.harvested || '';
     tPhotoManager.setFromIds(rec.photoIds);
   } else {
     tItems = [];
     for(let i=1;i<=10;i++) tItems.push({no:i, taicho:'', taiju:'', memo:''});
     $('tNote').value = '';
+    $('tMortality').value = '';
+    $('tHarvested').value = '';
     tPhotoManager.reset();
   }
   renderTItemRows();
@@ -1301,6 +1396,8 @@ function resetTaichoForm(){
   tItems = [];
   for(let i=1;i<=10;i++) tItems.push({no:i, taicho:'', taiju:'', memo:''});
   $('tNote').value='';
+  $('tMortality').value='';
+  $('tHarvested').value='';
   tPhotoManager.reset();
   renderTItemRows();
 }
@@ -1314,7 +1411,9 @@ async function saveTaicho(){
     const photoIds = await tPhotoManager.saveAndGetIds();
     const mk = monthOf(date);
     const cleanItems = tItems.filter(it=>String(it.no)!=='' || it.taicho!=='' || it.taiju!=='' || it.memo!=='');
-    const rec = { date, note: $('tNote').value.trim(), items: cleanItems, photoIds: photoIds.length ? photoIds : null, updatedAt: firebase.database.ServerValue.TIMESTAMP };
+    const rec = { date, note: $('tNote').value.trim(),
+      mortality: $('tMortality').value.trim(), harvested: $('tHarvested').value.trim(),
+      items: cleanItems, photoIds: photoIds.length ? photoIds : null, updatedAt: firebase.database.ServerValue.TIMESTAMP };
     await db.ref(`${ROOT}/taicho/${mk}/${date}`).set(rec);
     toast('保存しました');
     if(mk !== tCurrentMonth){ tCurrentMonth = mk; attachTaichoListener(); }
@@ -1345,9 +1444,13 @@ function renderTaichoList(){
     const rec = taichoMonthData[date];
     const a = taichoAvgOf(rec);
     const photoBadge = (rec.photoIds && rec.photoIds.length) ? `<span class="photocount">📷 ${rec.photoIds.length}</span>` : '';
+    const mhParts = [];
+    if(rec.mortality) mhParts.push(`死亡 ${escapeHtml(rec.mortality)}`);
+    if(rec.harvested) mhParts.push(`取上げ ${escapeHtml(rec.harvested)}`);
+    const mhBadge = mhParts.length ? `<span class="photocount" style="background:#fdeceb;color:#b0402f;">${mhParts.join(' ／ ')}</span>` : '';
     return `<div class="list-item" data-date="${date}">
       <button class="del" data-del="${date}" title="削除">🗑</button>
-      <div class="top"><span class="date">${fmtDate(date)}</span><span class="period AM" style="background:var(--teal)">${a.count}尾</span>${photoBadge}</div>
+      <div class="top"><span class="date">${fmtDate(date)}</span><span class="period AM" style="background:var(--teal)">${a.count}尾</span>${photoBadge}${mhBadge}</div>
       <div class="meta">体長平均 ${fmtNum(a.avgLen,1)}cm ／ 体重平均 ${fmtNum(a.avgWeight,1)}g${rec.note? '<br>💬 '+escapeHtml(rec.note):''}</div>
     </div>`;
   }).join('');
@@ -1560,7 +1663,7 @@ async function exportTaichoCsv(){
   await withExportButton('exportTaichoCsvBtn', async ()=>{
     const snap = await db.ref(`${ROOT}/taicho`).once('value');
     const all = snap.val() || {};
-    const header = ['測定日','No.','体長(cm)','体重(g)','個体備考','体長平均(cm)','体重平均(g)','尾数','全体メモ','写真枚数'];
+    const header = ['測定日','No.','体長(cm)','体重(g)','個体備考','体長平均(cm)','体重平均(g)','尾数','死亡数','取り上げ尾数','全体メモ','写真枚数'];
     const rows = [header];
     Object.keys(all).sort().forEach(mk=>{
       const monthData = all[mk] || {};
@@ -1570,11 +1673,11 @@ async function exportTaichoCsv(){
         const photoCount = (r.photoIds||[]).length;
         const items = r.items || [];
         if(items.length===0){
-          rows.push([date, '', '', '', '', csvNum(a.avgLen,1), csvNum(a.avgWeight,1), a.count, r.note||'', photoCount]);
+          rows.push([date, '', '', '', '', csvNum(a.avgLen,1), csvNum(a.avgWeight,1), a.count, r.mortality||'', r.harvested||'', r.note||'', photoCount]);
         } else {
           items.forEach(it=>{
             rows.push([date, (it&&it.no)||'', (it&&it.taicho)||'', (it&&it.taiju)||'', (it&&it.memo)||'',
-              csvNum(a.avgLen,1), csvNum(a.avgWeight,1), a.count, r.note||'', photoCount]);
+              csvNum(a.avgLen,1), csvNum(a.avgWeight,1), a.count, r.mortality||'', r.harvested||'', r.note||'', photoCount]);
           });
         }
       });
@@ -1655,16 +1758,20 @@ function renderSummaryTaicho(){
   }
   const avgLen = allLens.length? allLens.reduce((a,b)=>a+b,0)/allLens.length : null;
   const avgWt = allWts.length? allWts.reduce((a,b)=>a+b,0)/allWts.length : null;
+  const totalMortality = dates.reduce((sum,d)=>{ const n = parseNum(summaryData.taicho[d].mortality); return sum + (isNaN(n)?0:n); }, 0);
+  const totalHarvested = dates.reduce((sum,d)=>{ const n = parseNum(summaryData.taicho[d].harvested); return sum + (isNaN(n)?0:n); }, 0);
   $('summaryTaichoStats').innerHTML = `
     <div class="statcell"><div class="k">月間体長平均</div><div class="v">${fmtNum(avgLen,1)}<span> cm</span></div></div>
     <div class="statcell"><div class="k">月間体重平均</div><div class="v">${fmtNum(avgWt,1)}<span> g</span></div></div>
     <div class="statcell"><div class="k">測定回数</div><div class="v">${dates.length}<span> 回</span></div></div>
-    <div class="statcell"><div class="k">総測定尾数</div><div class="v">${allWts.length || allLens.length}<span> 尾</span></div></div>`;
-  const head = '<tr><th>測定日</th><th>尾数</th><th>体長平均</th><th>体重平均</th><th>メモ</th></tr>';
+    <div class="statcell"><div class="k">総測定尾数</div><div class="v">${allWts.length || allLens.length}<span> 尾</span></div></div>
+    <div class="statcell"><div class="k">月間死亡数</div><div class="v">${totalMortality}<span> 尾</span></div></div>
+    <div class="statcell"><div class="k">月間取り上げ尾数</div><div class="v">${totalHarvested}<span> 尾</span></div></div>`;
+  const head = '<tr><th>測定日</th><th>尾数</th><th>体長平均</th><th>体重平均</th><th>死亡</th><th>取上げ</th><th>メモ</th></tr>';
   const rows = dates.map(d=>{
     const rec = summaryData.taicho[d];
     const a = taichoAvgOf(rec);
-    return `<tr><td>${fmtDate(d)}</td><td>${a.count}</td><td>${fmtNum(a.avgLen,1)}</td><td>${fmtNum(a.avgWeight,1)}</td><td style="white-space:normal;text-align:left;">${escapeHtml(rec.note||'')}</td></tr>`;
+    return `<tr><td>${fmtDate(d)}</td><td>${a.count}</td><td>${fmtNum(a.avgLen,1)}</td><td>${fmtNum(a.avgWeight,1)}</td><td>${escapeHtml(rec.mortality||'-')}</td><td>${escapeHtml(rec.harvested||'-')}</td><td style="white-space:normal;text-align:left;">${escapeHtml(rec.note||'')}</td></tr>`;
   }).join('');
   $('summaryTaichoTable').innerHTML = head+rows;
 }
@@ -1790,6 +1897,607 @@ function renderChart(labels, values, labelText){
       }
     }
   });
+}
+
+/* ---------- 12. 分析タブ ---------- */
+function mean(arr){ return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null; }
+function stddev(arr){
+  if(arr.length < 2) return null;
+  const m = mean(arr);
+  const variance = arr.reduce((s,x)=>s+(x-m)*(x-m),0)/(arr.length-1);
+  return Math.sqrt(variance);
+}
+function median(arr){
+  if(arr.length===0) return null;
+  const s = [...arr].sort((a,b)=>a-b);
+  const mid = Math.floor(s.length/2);
+  return s.length%2 ? s[mid] : (s[mid-1]+s[mid])/2;
+}
+function pearsonCorrelation(xs, ys){
+  const n = xs.length;
+  if(n < 2) return null;
+  const mx = mean(xs), my = mean(ys);
+  let sxy=0, sxx=0, syy=0;
+  for(let i=0;i<n;i++){
+    const dx = xs[i]-mx, dy = ys[i]-my;
+    sxy += dx*dy; sxx += dx*dx; syy += dy*dy;
+  }
+  if(sxx===0 || syy===0) return null;
+  return sxy / Math.sqrt(sxx*syy);
+}
+function linearRegression(xs, ys){
+  const n = xs.length;
+  if(n < 2) return null;
+  const mx = mean(xs), my = mean(ys);
+  let sxy=0, sxx=0;
+  for(let i=0;i<n;i++){ const dx=xs[i]-mx; sxy += dx*(ys[i]-my); sxx += dx*dx; }
+  if(sxx===0) return null;
+  const slope = sxy/sxx;
+  const intercept = my - slope*mx;
+  return {slope, intercept};
+}
+function corrLabel(r){
+  const a = Math.abs(r);
+  const dir = r>=0 ? '正' : '負';
+  let strength;
+  if(a >= 0.7) strength = '強い';
+  else if(a >= 0.4) strength = 'やや強い';
+  else if(a >= 0.2) strength = '弱い';
+  else strength = 'ほとんど無い';
+  return `${strength}${dir}の相関`;
+}
+function daysSinceEpoch(dateStr){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  return Math.floor(Date.UTC(y, m-1, d) / 86400000);
+}
+
+let anKanriAll = {}, anTaichoAll = {}, anShiftAll = {}, anSettings = {};
+let anGrowthChartInstance = null, anCorrChartInstance = null;
+const KANRI_THRESHOLD_FIELDS = KANRI_FIELDS.filter(f=> !['kyuji','toyu','clarity'].includes(f.key));
+
+function initAnalysisTab(){
+  populateCorrSelectors();
+  $('anSaveSettingsBtn').addEventListener('click', saveAnalysisSettings);
+  $('anCorrBtn').addEventListener('click', runCorrelationAnalysis);
+
+  db.ref(ROOT+'/settings').on('value', snap=>{
+    anSettings = snap.val() || {};
+    $('anInitialStock').value = anSettings.initialStock || '';
+    $('anTargetWeight').value = anSettings.targetWeight || '';
+    renderThresholdInputs();
+    renderAllAnalysis();
+  });
+  db.ref(ROOT+'/kanri').on('value', snap=>{ anKanriAll = snap.val() || {}; renderAllAnalysis(); });
+  db.ref(ROOT+'/taicho').on('value', snap=>{ anTaichoAll = snap.val() || {}; renderAllAnalysis(); });
+  db.ref(ROOT+'/shift').on('value', snap=>{ anShiftAll = snap.val() || {}; renderAllAnalysis(); });
+}
+
+function renderThresholdInputs(){
+  const thresholds = (anSettings && anSettings.thresholds) || {};
+  $('anThresholdGrid').innerHTML = KANRI_THRESHOLD_FIELDS.map(f=>{
+    const t = thresholds[f.key] || {};
+    return `<div class="stepfield" style="margin-bottom:8px;">
+      <label>${f.label}${f.unit?`(${f.unit})`:''} 下限〜上限</label>
+      <div class="grid2">
+        <input type="text" inputmode="decimal" id="anThr_${f.key}_min" placeholder="下限" value="${escapeHtml(t.min||'')}">
+        <input type="text" inputmode="decimal" id="anThr_${f.key}_max" placeholder="上限" value="${escapeHtml(t.max||'')}">
+      </div>
+    </div>`;
+  }).join('');
+}
+async function saveAnalysisSettings(){
+  if(!db){ toast('Firebase未設定のため保存できません'); return; }
+  const thresholds = {};
+  KANRI_THRESHOLD_FIELDS.forEach(f=>{
+    const minV = $(`anThr_${f.key}_min`).value.trim();
+    const maxV = $(`anThr_${f.key}_max`).value.trim();
+    if(minV || maxV) thresholds[f.key] = { min: minV, max: maxV };
+  });
+  const settings = {
+    initialStock: $('anInitialStock').value.trim(),
+    targetWeight: $('anTargetWeight').value.trim(),
+    thresholds
+  };
+  try{
+    await db.ref(ROOT+'/settings').set(settings);
+    toast('分析設定を保存しました');
+  } catch(err){
+    console.error(err); toast('保存に失敗しました');
+  }
+}
+
+function flattenKanriRecords(){
+  const recs = [];
+  Object.keys(anKanriAll).forEach(mk=>{
+    const monthData = anKanriAll[mk] || {};
+    Object.keys(monthData).forEach(k=> recs.push(monthData[k]));
+  });
+  return recs;
+}
+function flattenTaichoRecords(){
+  const recs = [];
+  Object.keys(anTaichoAll).forEach(mk=>{
+    const monthData = anTaichoAll[mk] || {};
+    Object.keys(monthData).forEach(d=> recs.push(monthData[d]));
+  });
+  return recs;
+}
+function populateCorrSelectors(){
+  const opts = KANRI_FIELDS.filter(f=>f.key!=='clarity').map(f=>`<option value="k:${f.key}">管理表：${f.label}</option>`).join('')
+    + `<option value="k:clarity">管理表：透明度目安</option>`
+    + `<option value="t:len">体長・体重：体長平均(cm)（月平均）</option>`
+    + `<option value="t:wt">体長・体重：体重平均(g)（月平均）</option>`;
+  $('anCorrX').innerHTML = opts;
+  $('anCorrY').innerHTML = opts;
+  $('anCorrX').value = 'k:suion';
+  $('anCorrY').value = 'k:kyuji';
+}
+function monthlyAverageFor(kind, key){
+  const result = {};
+  if(kind==='k'){
+    Object.keys(anKanriAll).forEach(mk=>{
+      const monthData = anKanriAll[mk] || {};
+      const vals = Object.values(monthData).map(r=>parseNum(r[key])).filter(n=>!isNaN(n));
+      if(vals.length) result[mk] = mean(vals);
+    });
+  } else {
+    Object.keys(anTaichoAll).forEach(mk=>{
+      const monthData = anTaichoAll[mk] || {};
+      const vals = [];
+      Object.values(monthData).forEach(r=>{
+        const a = taichoAvgOf(r);
+        const v = key==='len' ? a.avgLen : a.avgWeight;
+        if(v!==null) vals.push(v);
+      });
+      if(vals.length) result[mk] = mean(vals);
+    });
+  }
+  return result;
+}
+function buildCorrelationPairs(selX, selY){
+  const [kindX, keyX] = selX.split(':');
+  const [kindY, keyY] = selY.split(':');
+  if(kindX==='k' && kindY==='k'){
+    const recs = flattenKanriRecords();
+    const xs=[], ys=[];
+    recs.forEach(r=>{
+      const xv = parseNum(r[keyX]), yv = parseNum(r[keyY]);
+      if(!isNaN(xv) && !isNaN(yv)){ xs.push(xv); ys.push(yv); }
+    });
+    return {xs, ys, n: xs.length};
+  }
+  const monthlyX = monthlyAverageFor(kindX, keyX);
+  const monthlyY = monthlyAverageFor(kindY, keyY);
+  const months = Object.keys(monthlyX).filter(mk=> monthlyY[mk]!==undefined);
+  const xs = months.map(mk=>monthlyX[mk]);
+  const ys = months.map(mk=>monthlyY[mk]);
+  return {xs, ys, n: xs.length};
+}
+function runCorrelationAnalysis(){
+  const selX = $('anCorrX').value, selY = $('anCorrY').value;
+  const {xs, ys, n} = buildCorrelationPairs(selX, selY);
+  const resultEl = $('anCorrResult');
+  if(n < 3){
+    resultEl.textContent = `十分なデータがありません（サンプル数: ${n}件、3件以上必要です）。`;
+    $('anCorrChartWrap').style.display='none';
+    return;
+  }
+  const r = pearsonCorrelation(xs, ys);
+  if(r === null){
+    resultEl.textContent = 'いずれかの項目の値が一定のため、相関係数を計算できませんでした。';
+    $('anCorrChartWrap').style.display='none';
+    return;
+  }
+  const labelX = $('anCorrX').selectedOptions[0].textContent;
+  const labelY = $('anCorrY').selectedOptions[0].textContent;
+  resultEl.textContent = `相関係数 r = ${fmtNum(r,3)}（${corrLabel(r)}、サンプル数 ${n}件）`;
+  renderCorrChart(xs, ys, labelX, labelY);
+}
+function renderCorrChart(xs, ys, labelX, labelY){
+  if(typeof Chart === 'undefined') return;
+  $('anCorrChartWrap').style.display = '';
+  const ctx = $('anCorrChart').getContext('2d');
+  if(anCorrChartInstance) anCorrChartInstance.destroy();
+  anCorrChartInstance = new Chart(ctx, {
+    type: 'scatter',
+    data: { datasets: [{ label: `${labelX} × ${labelY}`, data: xs.map((x,i)=>({x, y:ys[i]})), backgroundColor:'#18a0a5' }] },
+    options: { responsive:true, maintainAspectRatio:false,
+      scales: { x: { title: {display:true, text:labelX} }, y: { title:{display:true, text:labelY} } } }
+  });
+}
+
+function renderGrowthAnalysis(){
+  const recs = flattenTaichoRecords().filter(r=>r && r.date).sort((a,b)=> a.date < b.date ? -1 : a.date>b.date?1:0);
+  const sessions = recs.map(r=>{
+    const a = taichoAvgOf(r);
+    const lens = (r.items||[]).map(it=>parseNum(it&&it.taicho)).filter(n=>!isNaN(n));
+    const wts = (r.items||[]).map(it=>parseNum(it&&it.taiju)).filter(n=>!isNaN(n));
+    return { date: r.date, avgLen: a.avgLen, avgWeight: a.avgWeight, count:a.count,
+      lenStd: stddev(lens), wtStd: stddev(wts),
+      lenCv: (a.avgLen && stddev(lens)!==null) ? stddev(lens)/a.avgLen*100 : null,
+      wtCv: (a.avgWeight && stddev(wts)!==null) ? stddev(wts)/a.avgWeight*100 : null,
+      mortality: parseNum(r.mortality), harvested: parseNum(r.harvested) };
+  }).filter(s=> s.avgLen!==null || s.avgWeight!==null);
+
+  if(sessions.length===0){
+    $('anGrowthStats').innerHTML = '<div class="empty">体長・体重のデータがありません</div>';
+    $('anGrowthChartWrap').style.display='none';
+    $('anGrowthTable').innerHTML='';
+    $('anGrowthHint').textContent='';
+    $('anForecastResult').textContent='';
+    renderFcrAnalysis([]);
+    return;
+  }
+
+  for(let i=0;i<sessions.length;i++){
+    sessions[i].dwg = null; sessions[i].sgr = null; sessions[i].days = null;
+    if(i>0 && sessions[i].avgWeight!==null && sessions[i-1].avgWeight!==null){
+      const days = daysSinceEpoch(sessions[i].date) - daysSinceEpoch(sessions[i-1].date);
+      if(days > 0){
+        sessions[i].days = days;
+        sessions[i].dwg = (sessions[i].avgWeight - sessions[i-1].avgWeight) / days;
+        if(sessions[i].avgWeight>0 && sessions[i-1].avgWeight>0){
+          sessions[i].sgr = (Math.log(sessions[i].avgWeight) - Math.log(sessions[i-1].avgWeight)) / days * 100;
+        }
+      }
+    }
+    sessions[i].k = (sessions[i].avgWeight!==null && sessions[i].avgLen) ? (sessions[i].avgWeight / Math.pow(sessions[i].avgLen,3) * 100) : null;
+  }
+
+  const latest = sessions[sessions.length-1];
+  $('anGrowthStats').innerHTML = `
+    <div class="statcell"><div class="k">直近体長平均</div><div class="v">${fmtNum(latest.avgLen,1)}<span> cm</span></div></div>
+    <div class="statcell"><div class="k">直近体重平均</div><div class="v">${fmtNum(latest.avgWeight,1)}<span> g</span></div></div>
+    <div class="statcell"><div class="k">直近の日間増重量(DWG)</div><div class="v">${latest.dwg!==null?fmtNum(latest.dwg,2):'-'}<span> g/日</span></div></div>
+    <div class="statcell"><div class="k">直近の特定成長率(SGR)</div><div class="v">${latest.sgr!==null?fmtNum(latest.sgr,2):'-'}<span> %/日</span></div></div>
+    <div class="statcell"><div class="k">直近の肥満度指数(K値)</div><div class="v">${latest.k!==null?fmtNum(latest.k,2):'-'}<span></span></div></div>
+    <div class="statcell"><div class="k">直近の体重ばらつき(CV)</div><div class="v">${latest.wtCv!==null?fmtNum(latest.wtCv,1):'-'}<span> %</span></div></div>`;
+
+  if(typeof Chart !== 'undefined'){
+    $('anGrowthChartWrap').style.display='';
+    const ctx = $('anGrowthChart').getContext('2d');
+    if(anGrowthChartInstance) anGrowthChartInstance.destroy();
+    anGrowthChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: { labels: sessions.map(s=>fmtDate(s.date)),
+        datasets: [{ label:'体重平均(g)', data: sessions.map(s=>s.avgWeight), borderColor:'#18a0a5', backgroundColor:'rgba(24,160,165,0.12)', fill:true, tension:0.25, pointRadius:3 }] },
+      options: { responsive:true, maintainAspectRatio:false }
+    });
+  }
+  $('anGrowthHint').textContent = `${sessions.length}件の測定データを表示しています。`;
+
+  const targetWeight = parseNum($('anTargetWeight').value);
+  const weightPoints = sessions.filter(s=>s.avgWeight!==null);
+  if(isNaN(targetWeight)){
+    $('anForecastResult').textContent = '目標体重を入力すると予測します。';
+  } else if(weightPoints.length < 2){
+    $('anForecastResult').textContent = '予測には体重の測定データが2件以上必要です。';
+  } else {
+    const xs = weightPoints.map(s=>daysSinceEpoch(s.date));
+    const ys = weightPoints.map(s=>s.avgWeight);
+    const reg = linearRegression(xs, ys);
+    if(!reg || reg.slope <= 0){
+      $('anForecastResult').textContent = '直近の傾向では体重が増加していないため、到達予測はできません。';
+    } else {
+      const lastWeight = ys[ys.length-1];
+      if(lastWeight >= targetWeight){
+        $('anForecastResult').textContent = '既に目標体重に到達しています。';
+      } else {
+        const targetDay = (targetWeight - reg.intercept) / reg.slope;
+        const daysFromNow = Math.ceil(targetDay - daysSinceEpoch(todayStr()));
+        if(daysFromNow <= 0){
+          $('anForecastResult').textContent = `現在の増重ペースの回帰直線上では、目標体重 ${fmtNum(targetWeight,1)}g には既に到達している計算になります（データ更新が必要かもしれません）。`;
+        } else {
+          const targetDate = new Date(targetDay * 86400000);
+          const dateStr = `${targetDate.getFullYear()}-${pad(targetDate.getMonth()+1)}-${pad(targetDate.getDate())}`;
+          $('anForecastResult').textContent = `現在の増重ペース（回帰直線：約${fmtNum(reg.slope,2)}g/日）が続くと、目標体重 ${fmtNum(targetWeight,1)}g への到達は ${dateStr} 頃（約${daysFromNow}日後）と予測されます。※過去データからの単純な直線予測であり、実際の成長は水温や季節等により変動します。`;
+        }
+      }
+    }
+  }
+
+  const head = '<tr><th>測定日</th><th>尾数</th><th>体長平均</th><th>体重平均</th><th>DWG(g/日)</th><th>SGR(%/日)</th><th>K値</th><th>体重CV(%)</th><th>死亡</th><th>取上げ</th></tr>';
+  const rows = sessions.map(s=> `<tr><td>${fmtDate(s.date)}</td><td>${s.count}</td><td>${fmtNum(s.avgLen,1)}</td><td>${fmtNum(s.avgWeight,1)}</td><td>${s.dwg!==null?fmtNum(s.dwg,2):'-'}</td><td>${s.sgr!==null?fmtNum(s.sgr,2):'-'}</td><td>${s.k!==null?fmtNum(s.k,2):'-'}</td><td>${s.wtCv!==null?fmtNum(s.wtCv,1):'-'}</td><td>${isNaN(s.mortality)?'-':s.mortality}</td><td>${isNaN(s.harvested)?'-':s.harvested}</td></tr>`).join('');
+  $('anGrowthTable').innerHTML = head + rows;
+
+  renderFcrAnalysis(sessions);
+}
+
+function renderFcrAnalysis(sessions){
+  const initialStock = parseNum($('anInitialStock').value);
+  const resultEl = $('anFcrResult');
+  if(isNaN(initialStock)){
+    resultEl.textContent = '初期尾数を設定すると、測定期間ごとの推定飼料転換効率（給餌量合計 ÷ 推定バイオマス増加量）を計算します。';
+    return;
+  }
+  const weightSessions = sessions.filter(s=>s.avgWeight!==null);
+  if(weightSessions.length < 2){
+    resultEl.textContent = '飼料転換効率の計算には体重データが2件以上必要です。';
+    return;
+  }
+  let population = initialStock;
+  const withPop = weightSessions.map(s=>{
+    const mort = isNaN(s.mortality) ? 0 : s.mortality;
+    const harv = isNaN(s.harvested) ? 0 : s.harvested;
+    population = Math.max(0, population - mort - harv);
+    return { ...s, population, biomassG: population * s.avgWeight };
+  });
+  const rows = [];
+  const kanriRecs = flattenKanriRecords();
+  for(let i=1;i<withPop.length;i++){
+    const prev = withPop[i-1], curr = withPop[i];
+    const deltaBiomass = curr.biomassG - prev.biomassG;
+    const feedSum = kanriRecs.filter(r=> r.date > prev.date && r.date <= curr.date)
+      .reduce((sum,r)=>{ const n = parseNum(r.kyuji); return sum + (isNaN(n)?0:n); }, 0);
+    let fcr = null;
+    if(deltaBiomass > 0 && feedSum > 0) fcr = feedSum / deltaBiomass;
+    rows.push({ from: prev.date, to: curr.date, feedSum, deltaBiomass, fcr });
+  }
+  if(rows.length===0){ resultEl.textContent = '計算できる期間がありません。'; return; }
+  const validFcrs = rows.filter(r=>r.fcr!==null).map(r=>r.fcr);
+  const avgFcr = validFcrs.length ? mean(validFcrs) : null;
+  const detail = rows.map(r=> `${fmtDate(r.from)}〜${fmtDate(r.to)}：給餌量合計 ${fmtNum(r.feedSum,0)}g／推定バイオマス増加 ${fmtNum(r.deltaBiomass,0)}g／FCR ${r.fcr!==null?fmtNum(r.fcr,2):'算出不可'}`).join('<br>');
+  resultEl.innerHTML = (avgFcr!==null ? `平均FCR（給餌量÷増体重）: ${fmtNum(avgFcr,2)}<br>` : '') + detail;
+}
+
+function renderTempDiffStats(){
+  const recs = flattenKanriRecords();
+  const outIn = [], outWater = [], inWater = [];
+  recs.forEach(r=>{
+    const g = parseNum(r.gaiki), s = parseNum(r.shitsuon), w = parseNum(r.suion);
+    if(!isNaN(g) && !isNaN(s)) outIn.push(s-g);
+    if(!isNaN(g) && !isNaN(w)) outWater.push(w-g);
+    if(!isNaN(s) && !isNaN(w)) inWater.push(w-s);
+  });
+  if(outIn.length===0 && outWater.length===0 && inWater.length===0){
+    $('anTempDiffStats').innerHTML = '<div class="empty">データがありません</div>';
+    return;
+  }
+  $('anTempDiffStats').innerHTML = `
+    <div class="statcell"><div class="k">室内温－外気温 平均差</div><div class="v">${outIn.length?fmtNum(mean(outIn),1):'-'}<span> ℃</span></div></div>
+    <div class="statcell"><div class="k">水温－外気温 平均差</div><div class="v">${outWater.length?fmtNum(mean(outWater),1):'-'}<span> ℃</span></div></div>
+    <div class="statcell"><div class="k">水温－室内温 平均差</div><div class="v">${inWater.length?fmtNum(mean(inWater),1):'-'}<span> ℃</span></div></div>`;
+}
+
+function renderClarityAnalysis(){
+  const recs = flattenKanriRecords().filter(r=>r && r.clarity!==undefined && r.clarity!=='').sort((a,b)=> (a.date+a.period) < (b.date+b.period) ? -1:1);
+  if(recs.length===0){
+    $('anClarityStats').innerHTML = '<div class="empty">透明度のデータがありません</div>';
+    $('anClarityCorrResult').textContent = '';
+    return;
+  }
+  const vals = recs.map(r=>parseFloat(r.clarity)).filter(n=>!isNaN(n));
+  const latest = vals[vals.length-1];
+  let trendLabel = '-';
+  if(vals.length >= 2){
+    const reg = linearRegression(vals.map((_,i)=>i), vals);
+    if(reg){ trendLabel = reg.slope > 0.05 ? '上昇傾向' : (reg.slope < -0.05 ? '低下傾向' : '横ばい'); }
+  }
+  $('anClarityStats').innerHTML = `
+    <div class="statcell"><div class="k">平均透明度目安</div><div class="v">${fmtNum(mean(vals),1)}</div></div>
+    <div class="statcell"><div class="k">最新の透明度目安</div><div class="v">${fmtNum(latest,1)}</div></div>
+    <div class="statcell"><div class="k">傾向</div><div class="v">${trendLabel}</div></div>
+    <div class="statcell"><div class="k">記録件数</div><div class="v">${vals.length}<span> 件</span></div></div>`;
+
+  const pairs = [['ozone','オゾン'], ['suishin','水深'], ['kyuji','給餌量']];
+  const lines = pairs.map(([key,label])=>{
+    const xs=[], ys=[];
+    flattenKanriRecords().forEach(r=>{
+      const x = parseNum(r[key]), y = parseNum(r.clarity);
+      if(!isNaN(x) && !isNaN(y)){ xs.push(x); ys.push(y); }
+    });
+    if(xs.length < 3) return `${label}との相関: データ不足（${xs.length}件）`;
+    const r = pearsonCorrelation(xs, ys);
+    return r===null ? `${label}との相関: 算出不可` : `${label}との相関: r=${fmtNum(r,2)}（${corrLabel(r)}、${xs.length}件）`;
+  });
+  $('anClarityCorrResult').innerHTML = lines.join('<br>');
+}
+
+function renderStaffCounts(){
+  const recs = flattenKanriRecords();
+  const freq = {};
+  recs.forEach(r=>{ splitNames(r.staff).forEach(n=>{ freq[n]=(freq[n]||0)+1; }); });
+  const entries = Object.entries(freq).sort((a,b)=>b[1]-a[1]);
+  if(entries.length===0){ $('anStaffCounts').innerHTML = 'データがありません'; return; }
+  const max = entries[0][1];
+  $('anStaffCounts').innerHTML = entries.map(([name,count])=>{
+    const pct = Math.round(count/max*100);
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <div style="width:64px;font-size:12px;flex:none;">${escapeHtml(name)}</div>
+      <div style="flex:1;background:var(--teal-light);border-radius:6px;height:14px;overflow:hidden;">
+        <div style="width:${pct}%;background:var(--teal);height:100%;"></div>
+      </div>
+      <div style="width:32px;font-size:12px;text-align:right;flex:none;">${count}件</div>
+    </div>`;
+  }).join('');
+}
+
+function renderMissingRecords(){
+  const recs = flattenKanriRecords();
+  if(recs.length===0){ $('anMissingRecords').textContent = 'データがありません'; return; }
+  const dates = [...new Set(recs.map(r=>r.date))].sort();
+  const first = dates[0], last = dates[dates.length-1];
+  const presence = {};
+  recs.forEach(r=>{
+    presence[r.date] = presence[r.date] || {AM:false, PM:false};
+    if(r.period==='AM') presence[r.date].AM = true;
+    if(r.period==='PM') presence[r.date].PM = true;
+  });
+  const missing = [];
+  let cursor = first;
+  let guard = 0;
+  while(cursor <= last && guard < 5000){
+    const p = presence[cursor] || {AM:false, PM:false};
+    if(!p.AM || !p.PM){
+      const missingParts = [];
+      if(!p.AM) missingParts.push('AM');
+      if(!p.PM) missingParts.push('PM');
+      missing.push(`${fmtDate(cursor)}（${missingParts.join('・')}未記録）`);
+    }
+    const d = new Date(cursor+'T00:00:00');
+    d.setDate(d.getDate()+1);
+    cursor = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    guard++;
+  }
+  if(missing.length===0){
+    $('anMissingRecords').textContent = `${fmtDate(first)}〜${fmtDate(last)}の期間、AM/PMともすべて記録されています。`;
+  } else {
+    const shown = missing.slice(-20);
+    $('anMissingRecords').innerHTML = `記録期間 ${fmtDate(first)}〜${fmtDate(last)} のうち、${missing.length}日で記録漏れがあります（直近${shown.length}件を表示）。<br>` + shown.join('<br>');
+  }
+}
+
+function renderKeroseneForecast(){
+  const recs = flattenKanriRecords().filter(r=>r && r.date).sort((a,b)=> (a.date+a.period) < (b.date+b.period) ? -1 : 1);
+  const points = [];
+  recs.forEach(r=>{
+    const v = parseNum(r.toyu);
+    if(!isNaN(v)) points.push({date:r.date, period:r.period, v});
+  });
+  if(points.length < 2){
+    $('anKeroseneForecast').textContent = '灯油残量が数値で記録された記録が不足しています（"満タン"のような文字入力は対象外です）。';
+    return;
+  }
+  let startIdx = 0;
+  for(let i=1;i<points.length;i++){
+    if(points[i].v > points[i-1].v) startIdx = i;
+  }
+  const segment = points.slice(startIdx);
+  if(segment.length < 2){
+    $('anKeroseneForecast').textContent = '直近の補充以降のデータが不足しているため予測できません。';
+    return;
+  }
+  const xs = segment.map(p=>daysSinceEpoch(p.date));
+  const ys = segment.map(p=>p.v);
+  const reg = linearRegression(xs, ys);
+  if(!reg || reg.slope >= 0){
+    $('anKeroseneForecast').textContent = '直近の補充以降、残量が減少していないため予測できません。';
+    return;
+  }
+  const zeroDay = -reg.intercept / reg.slope;
+  const daysFromNow = Math.ceil(zeroDay - daysSinceEpoch(todayStr()));
+  if(daysFromNow <= 0){
+    $('anKeroseneForecast').textContent = `回帰直線上ではすでに残量が尽きている計算になります。最新の残量を確認してください（最新記録: ${fmtDate(segment[segment.length-1].date)} 時点で ${fmtNum(segment[segment.length-1].v,2)}）。`;
+  } else {
+    const zeroDate = new Date(zeroDay*86400000);
+    const dateStr = `${zeroDate.getFullYear()}-${pad(zeroDate.getMonth()+1)}-${pad(zeroDate.getDate())}`;
+    $('anKeroseneForecast').textContent = `直近の補充（${fmtDate(segment[0].date)}）以降の消費ペース（約${fmtNum(-reg.slope,3)}/日）が続くと、${dateStr}頃（約${daysFromNow}日後）に残量が尽きる計算です。※数値入力された記録のみを対象とした単純な直線予測です。`;
+  }
+}
+
+function renderShiftAudit(){
+  const shiftRecs = [];
+  Object.keys(anShiftAll).forEach(mk=>{
+    const monthData = anShiftAll[mk] || {};
+    Object.keys(monthData).forEach(d=> shiftRecs.push(monthData[d]));
+  });
+  if(shiftRecs.length===0){ $('anShiftAudit').textContent = 'シフトのデータがありません'; return; }
+  const kanriByDatePeriod = {};
+  flattenKanriRecords().forEach(r=>{
+    if(!r || !r.date || !r.period) return;
+    kanriByDatePeriod[r.date] = kanriByDatePeriod[r.date] || {AM:new Set(), PM:new Set()};
+    splitNames(r.staff).forEach(n=> kanriByDatePeriod[r.date][r.period].add(n));
+  });
+  const mismatches = [];
+  shiftRecs.sort((a,b)=> a.date < b.date ? -1 : 1).forEach(s=>{
+    ['am','pm'].forEach(slot=>{
+      const period = slot==='am' ? 'AM' : 'PM';
+      const scheduled = splitNames(s[slot]);
+      if(scheduled.length===0) return;
+      const recorded = (kanriByDatePeriod[s.date] && kanriByDatePeriod[s.date][period]) ? kanriByDatePeriod[s.date][period] : new Set();
+      if(recorded.size === 0){
+        mismatches.push(`${fmtDate(s.date)} ${period}：予定（${scheduled.join('、')}）に対し管理表の記録がありません`);
+      } else {
+        const missing = scheduled.filter(n=>!recorded.has(n));
+        if(missing.length){
+          mismatches.push(`${fmtDate(s.date)} ${period}：予定の${missing.join('、')}が記録の担当者に含まれていません（記録: ${[...recorded].join('、')}）`);
+        }
+      }
+    });
+  });
+  if(mismatches.length===0){
+    $('anShiftAudit').textContent = 'シフト予定と管理表の記録担当者に不一致は見つかりませんでした。';
+  } else {
+    const shown = mismatches.slice(0,20);
+    $('anShiftAudit').innerHTML = `${mismatches.length}件の不一致があります（先頭${shown.length}件を表示）。<br>` + shown.join('<br>');
+  }
+}
+
+function renderThresholdAlerts(){
+  const thresholds = (anSettings && anSettings.thresholds) || {};
+  const activeFields = Object.keys(thresholds).filter(k=> thresholds[k] && (thresholds[k].min!=='' || thresholds[k].max!==''));
+  if(activeFields.length===0){
+    $('anThresholdAlerts').textContent = '分析設定で管理範囲を入力すると表示されます';
+    return;
+  }
+  const recs = flattenKanriRecords().filter(r=>r&&r.date).sort((a,b)=> (a.date+a.period) < (b.date+b.period) ? -1 : 1);
+  const violations = [];
+  recs.forEach(r=>{
+    activeFields.forEach(key=>{
+      const v = parseNum(r[key]);
+      if(isNaN(v)) return;
+      const t = thresholds[key];
+      const min = t.min!=='' ? parseNum(t.min) : null;
+      const max = t.max!=='' ? parseNum(t.max) : null;
+      if((min!==null && !isNaN(min) && v < min) || (max!==null && !isNaN(max) && v > max)){
+        const label = KANRI_FIELD_MAP[key] ? KANRI_FIELD_MAP[key].label : key;
+        violations.push({date:r.date, period:r.period, label, value:v, min:t.min, max:t.max});
+      }
+    });
+  });
+  if(violations.length===0){ $('anThresholdAlerts').textContent = '管理範囲を外れた記録はありません。'; return; }
+  violations.reverse();
+  const shown = violations.slice(0,30);
+  $('anThresholdAlerts').innerHTML = `${violations.length}件（先頭${shown.length}件を表示）<br>` +
+    shown.map(v=> `${fmtDate(v.date)}${v.period} ${escapeHtml(v.label)}：${fmtNum(v.value,2)}（範囲 ${v.min||'-'}〜${v.max||'-'}）`).join('<br>');
+}
+
+function renderSpikeAlerts(){
+  const recs = flattenKanriRecords().filter(r=>r&&r.date).sort((a,b)=> (a.date+a.period) < (b.date+b.period) ? -1 : 1);
+  const fields = KANRI_THRESHOLD_FIELDS;
+  const allSpikes = [];
+  fields.forEach(f=>{
+    const series = [];
+    recs.forEach(r=>{
+      const v = parseNum(r[f.key]);
+      if(!isNaN(v)) series.push({date:r.date, period:r.period, v});
+    });
+    if(series.length < 6) return;
+    const diffs = [];
+    for(let i=1;i<series.length;i++) diffs.push(Math.abs(series[i].v - series[i-1].v));
+    const med = median(diffs);
+    if(med === null || med === 0) return;
+    for(let i=1;i<series.length;i++){
+      const d = Math.abs(series[i].v - series[i-1].v);
+      if(d > med*3 && d > 0){
+        allSpikes.push({ date: series[i].date, period: series[i].period, label: f.label,
+          value: series[i].v, prev: series[i-1].v, diff: series[i].v - series[i-1].v });
+      }
+    }
+  });
+  if(allSpikes.length===0){ $('anSpikeAlerts').textContent = '急な変化は見つかりませんでした。'; return; }
+  allSpikes.sort((a,b)=> (a.date+a.period) < (b.date+b.period) ? -1 : 1);
+  allSpikes.reverse();
+  const shown = allSpikes.slice(0,30);
+  $('anSpikeAlerts').innerHTML = `${allSpikes.length}件（先頭${shown.length}件を表示）<br>` +
+    shown.map(s=>{
+      const sign = s.diff>0?'+':'';
+      return `${fmtDate(s.date)}${s.period} ${escapeHtml(s.label)}：${fmtNum(s.value,2)}（前回 ${fmtNum(s.prev,2)} から ${sign}${fmtNum(s.diff,2)}）`;
+    }).join('<br>');
+}
+
+function renderAllAnalysis(){
+  if(!db) return;
+  $('anLoadHint').textContent = '';
+  renderGrowthAnalysis();
+  renderTempDiffStats();
+  renderClarityAnalysis();
+  renderStaffCounts();
+  renderMissingRecords();
+  renderKeroseneForecast();
+  renderShiftAudit();
+  renderThresholdAlerts();
+  renderSpikeAlerts();
 }
 
 /* ---------- 設定未入力時のフォールバック表示 ---------- */
